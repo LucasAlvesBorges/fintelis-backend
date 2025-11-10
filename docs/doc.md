@@ -29,7 +29,8 @@ A IA deve usar o seguinte esquema SQL (PostgreSQL v7) como a fonte da verdade ab
 -- 0. TABELA DE USUÁRIO
 CREATE TABLE "user" (
     "id" BIGSERIAL PRIMARY KEY,
-    "username" VARCHAR(150) NOT NULL UNIQUE,
+    "first_name" VARCHAR(150) NOT NULL UNIQUE,
+    "last_name" VARCHAR(150) NOT NULL UNIQUE,
     "email" VARCHAR(255) NOT NULL
 );
 
@@ -215,7 +216,7 @@ A IA deve organizar o projeto da seguinte forma. Todos os models.py devem ser cr
 
     users (App)
 
-        User (Modelo customizado, herdando de AbstractUser)
+        User (Modelo customizado, herdando de AbstractUser, login com email)
 
     companies (App)
 
