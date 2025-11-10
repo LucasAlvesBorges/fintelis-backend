@@ -20,6 +20,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-fintelis}
       REDIS_URL: redis://redis:6379/0
       RUN_MIGRATIONS: "true"
+      TZ: America/Sao_Paulo
     depends_on:
       db:
         condition: service_healthy
@@ -43,6 +44,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-fintelis}
       REDIS_URL: redis://redis:6379/0
       RUN_MIGRATIONS: "false"
+      TZ: America/Sao_Paulo
     depends_on:
       app:
         condition: service_started
@@ -68,6 +70,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-fintelis}
       REDIS_URL: redis://redis:6379/0
       RUN_MIGRATIONS: "false"
+      TZ: America/Sao_Paulo
     depends_on:
       app:
         condition: service_started

@@ -1,10 +1,15 @@
+import uuid
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction as db_transaction
+from django.db.models import F
 
 from apps.companies.models import Company
 
 
 class TimeStampedModel(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -41,6 +46,7 @@ class BankAccount(TimeStampedModel):
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=25, choices=Types.choices)
     initial_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    current_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
 
     class Meta:
         db_table = 'bank_account'
@@ -48,6 +54,11 @@ class BankAccount(TimeStampedModel):
 
     def __str__(self):
         return f'{self.name} ({self.company})'
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and (self.current_balance is None or self.current_balance == 0):
+            self.current_balance = self.initial_balance
+        super().save(*args, **kwargs)
 
 
 class CashRegister(TimeStampedModel):
@@ -169,6 +180,34 @@ class Transaction(TimeStampedModel):
         self._validate_cash_register_destination()
         self._validate_linked_transaction()
 
+    def save(self, *args, **kwargs):
+        with db_transaction.atomic():
+            previous = None
+            if self.pk:
+                previous = (
+                    Transaction.objects.select_for_update()
+                    .filter(pk=self.pk)
+                    .only('bank_account_id', 'amount', 'type')
+                    .first()
+                )
+            super().save(*args, **kwargs)
+            self._sync_bank_account_balance(previous)
+
+    def delete(self, *args, **kwargs):
+        with db_transaction.atomic():
+            instance = (
+                Transaction.objects.select_for_update()
+                .filter(pk=self.pk)
+                .only('bank_account_id', 'amount', 'type')
+                .first()
+            )
+            if instance:
+                self._update_bank_account_balance(
+                    instance.bank_account_id,
+                    -self._compute_balance_delta(instance.type, instance.amount),
+                )
+        return super().delete(*args, **kwargs)
+
     def _validate_company_scope(self):
         errors = {}
         if self.bank_account and self.bank_account.company_id != self.company_id:
@@ -239,6 +278,42 @@ class Transaction(TimeStampedModel):
 
     def __str__(self):
         return f'{self.description} ({self.get_type_display()})'
+
+    # Balance helpers -------------------------------------------------
+
+    def _sync_bank_account_balance(self, previous: 'Transaction | None'):
+        if previous:
+            self._update_bank_account_balance(
+                previous.bank_account_id,
+                -self._compute_balance_delta(previous.type, previous.amount),
+            )
+        self._update_bank_account_balance(
+            self.bank_account_id,
+            self._compute_balance_delta(self.type, self.amount),
+        )
+
+    def _update_bank_account_balance(self, bank_account_id, delta: Decimal):
+        if not bank_account_id or delta == 0:
+            return
+        BankAccount.objects.filter(pk=bank_account_id).update(
+            current_balance=F('current_balance') + delta
+        )
+
+    @staticmethod
+    def _compute_balance_delta(tx_type: str, amount: Decimal) -> Decimal:
+        if amount in (None, 0):
+            return Decimal('0')
+        if tx_type in {
+            Transaction.Types.RECEITA,
+            Transaction.Types.TRANSFERENCIA_INTERNA,
+        }:
+            return amount
+        if tx_type in {
+            Transaction.Types.DESPESA,
+            Transaction.Types.TRANSFERENCIA_EXTERNA,
+        }:
+            return -amount
+        return Decimal('0')
 
 
 class Bill(TimeStampedModel):

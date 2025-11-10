@@ -9,6 +9,8 @@ should_run_migrations() {
     esac
 }
 
+export TZ="${TZ:-America/Sao_Paulo}"
+
 if should_run_migrations; then
     python manage.py migrate --noinput
 fi
