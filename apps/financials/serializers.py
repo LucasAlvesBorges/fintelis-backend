@@ -47,10 +47,11 @@ class BankAccountSerializer(CompanyScopedModelSerializer):
             'name',
             'type',
             'initial_balance',
+            'current_balance',
             'created_at',
             'updated_at',
         )
-        read_only_fields = ('id', 'company', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'company', 'current_balance', 'created_at', 'updated_at')
 
 
 class CashRegisterSerializer(CompanyScopedModelSerializer):

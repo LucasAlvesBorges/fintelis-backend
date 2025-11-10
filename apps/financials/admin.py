@@ -14,7 +14,7 @@ from .models import (
 
 @admin.register(BankAccount)
 class BankAccountAdmin(admin.ModelAdmin):
-    list_display = ('name', 'company', 'type', 'initial_balance', 'created_at')
+    list_display = ('name', 'company', 'type', 'initial_balance', 'current_balance', 'created_at')
     search_fields = ('name', 'company__name')
     list_filter = ('type', 'company')
     ordering = ('company__name', 'name')
