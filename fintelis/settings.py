@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.companies',
     'apps.financials',
+    'apps.inventory',
     'rest_framework',
     'django_celery_beat',
 ]
