@@ -2,22 +2,12 @@
 Script para popular dados de exemplo no módulo de inventário.
 
 COMANDOS DE USO:
-    # Popular dados para a primeira empresa do banco
-    python manage.py populate_inventory
-
-    # Popular dados para uma empresa específica
-    python manage.py populate_inventory --company-id 1
-
-    # Limpar dados existentes antes de popular
-    python manage.py populate_inventory --clear
-
-    # Combinar opções
-    python manage.py populate_inventory --company-id 1 --clear
-
     # Via Docker
     docker-compose exec app python manage.py populate_inventory
-    docker-compose exec app python manage.py populate_inventory --company-id 1 --clear
+    docker-compose exec app python manage.py populate_inventory --company-id "550e8400-e29b-41d4-a716-446655440000" --clear
 """
+import uuid
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from decimal import Decimal
@@ -38,8 +28,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--company-id',
-            type=int,
-            help='ID da empresa para popular os dados (se não informado, usa a primeira empresa)',
+            type=str,
+            help='UUID da empresa para popular os dados (se não informado, usa a primeira empresa)',
         )
         parser.add_argument(
             '--clear',
@@ -54,10 +44,17 @@ class Command(BaseCommand):
         # Obtém ou cria a empresa
         if company_id:
             try:
+                # Valida se é um UUID válido
+                uuid.UUID(company_id)
                 company = Company.objects.get(id=company_id)
+            except ValueError:
+                self.stdout.write(
+                    self.style.ERROR(f'UUID inválido: {company_id}. Use o formato: 550e8400-e29b-41d4-a716-446655440000')
+                )
+                return
             except Company.DoesNotExist:
                 self.stdout.write(
-                    self.style.ERROR(f'Empresa com ID {company_id} não encontrada.')
+                    self.style.ERROR(f'Empresa com UUID {company_id} não encontrada.')
                 )
                 return
         else:

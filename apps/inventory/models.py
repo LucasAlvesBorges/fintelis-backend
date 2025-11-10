@@ -1,9 +1,12 @@
+import uuid
+
 from django.db import models
 from apps.companies.models import Company, TimeStampedModel
 
 
 class ProductCategory(TimeStampedModel):
     """Categoria de Produto"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     company = models.ForeignKey(
         Company,
@@ -22,6 +25,7 @@ class ProductCategory(TimeStampedModel):
 
 class Product(TimeStampedModel):
     """O Catálogo Mestre de Produtos"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     product_category = models.ForeignKey(
         ProductCategory,
@@ -49,6 +53,7 @@ class Product(TimeStampedModel):
 
 class Inventory(TimeStampedModel):
     """Estoque (Local)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     company = models.ForeignKey(
         Company,
@@ -67,6 +72,7 @@ class Inventory(TimeStampedModel):
 
 class StockItem(TimeStampedModel):
     """Pivô: Produto + Local + Quantidade"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(
         Company,
         on_delete=models.CASCADE,
@@ -95,6 +101,8 @@ class StockItem(TimeStampedModel):
 
 class InventoryMovement(TimeStampedModel):
     """O Histórico (Kardex)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
     class MovementType(models.TextChoices):
         IN_PURCHASE = 'in_purchase', 'Entrada - Compra'
         IN_ADJUSTMENT = 'in_adjustment', 'Entrada - Ajuste'
