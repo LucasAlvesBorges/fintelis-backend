@@ -166,7 +166,7 @@ CREATE TABLE "products" ( -- O Catálogo Mestre de Produtos
     UNIQUE("company_id", "name")
 );
 
-CREATE TABLE "inventory_location" ( -- O Local do Estoque
+CREATE TABLE "inventory" ( -- Estoque
     "id" BIGSERIAL PRIMARY KEY,
     "name" VARCHAR(255) NOT NULL, -- Ex: "Estoque TI", "Estoque Bilhetagem"
     "company_id" BIGINT NOT NULL REFERENCES "company" ("id"),
@@ -178,11 +178,11 @@ CREATE TABLE "stock_item" ( -- Pivô: Produto + Local + Quantidade
     "id" BIGSERIAL PRIMARY KEY,
     "company_id" BIGINT NOT NULL REFERENCES "company" ("id"),
     "product_id" BIGINT NOT NULL REFERENCES "products" ("id"),
-    "location_id" BIGINT NOT NULL REFERENCES "inventory_location" ("id"),
+    "inventory_id" BIGINT NOT NULL REFERENCES "inventory" ("id"),
     "quantity_on_hand" BIGINT NOT NULL DEFAULT 0, -- A quantidade atual
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT (now()),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT (now()),
-    UNIQUE("company_id", "product_id", "location_id")
+    UNIQUE("company_id", "product_id", "inventory_id")
 );
 
 CREATE TABLE "inventory_movements" ( -- O Histórico (Kardex)
