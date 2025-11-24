@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
@@ -37,16 +38,30 @@ class UserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser must have is_superuser=True.')
 
-        return self.create_user(email, first_name, last_name, password, **extra_fields)
+        user = self.create_user(email, first_name, last_name, password, **extra_fields)
+        user.subscription_active = True
+        user.subscription_expires_at = None
+        user.save(using=self._db)
+        return user
 
 
 name_validator = RegexValidator(
-    regex=r'^[A-Za-zÀ-ÖØ-öø-ÿ]+$',
-    message='Use apenas letras (sem espaços, números ou caracteres especiais).',
+    regex=r'^[A-Za-zÀ-ÖØ-öø-ÿ]+(?: [A-Za-zÀ-ÖØ-öø-ÿ]+)*$',
+    message='Use apenas letras e espaços (sem números ou caracteres especiais).',
 )
 
 
+def default_trial_end():
+    return timezone.now() + timedelta(days=15)
+
+
 class User(AbstractBaseUser, PermissionsMixin):
+    class SubscriptionPlan(models.TextChoices):
+        MONTHLY = 'monthly', 'Mensal (R$500 via Pix)'
+        QUARTERLY = 'quarterly', 'Trimestral (R$1500 via Pix)'
+        SEMIANNUAL = 'semiannual', 'Semestral (R$ 3000 via Pix)'
+        ANNUAL = 'annual', 'Anual (R$6000 via Pix)'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     first_name = models.CharField(max_length=150, validators=[name_validator])
     last_name = models.CharField(max_length=150, validators=[name_validator])
@@ -56,6 +71,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    trial_ends_at = models.DateTimeField(null=True, blank=True)
+    subscription_active = models.BooleanField(default=False)
+    subscription_expires_at = models.DateTimeField(null=True, blank=True)
+    subscription_plan = models.CharField(
+        max_length=20,
+        choices=SubscriptionPlan.choices,
+        null=True,
+        blank=True,
+    )
 
     objects = UserManager()
 
@@ -68,3 +92,21 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    @property
+    def has_active_access(self) -> bool:
+        """
+        Allows login if trial is still valid or there is an active subscription.
+        """
+        now = timezone.now()
+        if self.trial_ends_at and now <= self.trial_ends_at:
+            return True
+        if self.subscription_active:
+            if self.subscription_expires_at:
+                return now <= self.subscription_expires_at
+            return True
+        return False
+
+    def start_trial(self):
+        self.trial_ends_at = default_trial_end()
+        self.save(update_fields=['trial_ends_at'])

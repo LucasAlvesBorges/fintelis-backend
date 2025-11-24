@@ -17,17 +17,27 @@ Este documento complementa o `doc.md` e descreve como consumir as APIs expostas 
 
 | Recurso | Método | Path | Observações |
 | --- | --- | --- | --- |
-| BankAccount | GET/POST | `/api/v1/financials/bank-accounts/` | CRUD completo |
+| Banks | GET | `/api/v1/financials/banks/` | Catálogo global (código, nome, logo SVG); somente leitura |
+| BankAccount | GET/POST | `/api/v1/financials/bank-accounts/` | CRUD; `bank` opcional vinculado ao catálogo |
 | CashRegister | GET/POST | `/api/v1/financials/cash-registers/` | `default_bank_account` deve ser da mesma empresa |
-| Category | GET/POST | `/api/v1/financials/categories/` | Tipos: `receita`, `despesa` |
-| Transaction | GET/POST | `/api/v1/financials/transactions/` | Campos extras para PDV e transferências |
+| Category | GET/POST | `/api/v1/financials/categories/` | Hierárquica (`parent`); tipo igual ao pai |
+| Transaction | GET/POST | `/api/v1/financials/transactions/` | PDV, transferências, `contact`, estorno |
 | Transaction Transfer | POST | `/api/v1/financials/transactions/transfer/` | Cria duas transações linkadas atômicas |
-| Bill | GET/POST | `/api/v1/financials/bills/` | Status `a_vencer` ou `quitada` |
+| Transaction Refund | POST | `/api/v1/financials/transactions/{id}/refund/` | Estorno parcial/total de receitas |
+| Bill | GET/POST | `/api/v1/financials/bills/` | `contact` fornecedor/ambos; status `a_vencer`/`quitada` |
 | Bill Payment | POST | `/api/v1/financials/bills/{id}/record-payment/` | Cria `Transaction` do tipo `despesa` |
-| Income | GET/POST | `/api/v1/financials/incomes/` | Status `pendente` ou `recebido` |
+| Income | GET/POST | `/api/v1/financials/incomes/` | `contact` cliente/ambos; status `pendente`/`recebido` |
 | Income Payment | POST | `/api/v1/financials/incomes/{id}/record-payment/` | Cria `Transaction` do tipo `receita` |
 | RecurringBill | GET/POST | `/api/v1/financials/recurring-bills/` | Moldes para contas a pagar |
 | RecurringIncome | GET/POST | `/api/v1/financials/recurring-incomes/` | Moldes para contas a receber |
+
+---
+
+## Bancos globais (`/banks/`)
+
+- Catálogo independente de empresa: `code`, `name`, `cnpj` (opcional), `is_active`, `logo` (FileField SVG).
+- Logos são servidas via `MEDIA_URL` (em dev, já exposto quando DEBUG=True).
+- Seed: coloque SVGs em `media/bank_logos_source/{code}.svg` e rode `python manage.py seed_banks`. Códigos suportados: 001, 033, 041, 070, 077, 104, 208, 212, 237, 260, 290, 318, 336, 341, 422, 4225 (PAN), 655, 707, 748, 756, 9997 (PicPay), 999 (créditos bilhetagem).
 
 ---
 
@@ -38,6 +48,7 @@ Este documento complementa o `doc.md` e descreve como consumir as APIs expostas 
 {
   "id": 1,
   "company": 10,
+  "bank": null,
   "name": "Itau CC",
   "type": "conta_corrente",
   "initial_balance": "5000.00",
@@ -59,6 +70,8 @@ curl -X POST /api/v1/financials/bank-accounts/ \
   }'
 ```
 
+- Para vincular ao catálogo, envie `bank: <id retornado em /banks/>`.
+
 ---
 
 ## Cash Registers (`/cash-registers/`)
@@ -78,7 +91,12 @@ Use para modelar PDVs. O campo `default_bank_account` define o destino obrigató
 ## Categories (`/categories/`)
 
 - `type`: `receita` ou `despesa`.
-- Únicas por `(company, name, type)`.
+- Hierárquica: `parent` opcional; o pai deve ser da mesma empresa e ter o mesmo `type`.
+- Únicas por `(company, parent, name, type)`.
+- Código numérico gerado automaticamente pelo backend:
+  - Raiz recebe o próximo inteiro disponível na empresa (`1`, `2`, ...).
+  - Filhos herdam o código do pai e acrescentam `.<n>` conforme ordem de criação (`1.1`, `1.2`, ...).
+  - Campo `code` é único por empresa e retornado nas respostas; não precisa ser enviado no payload.
 
 ---
 
@@ -88,8 +106,10 @@ Use para modelar PDVs. O campo `default_bank_account` define o destino obrigató
 - `bank_account`: obrigatório para todas as transações; em transações de PDV é preenchido automaticamente com o `default_bank_account`.
 - `cash_register`: opcional, somente para movimentos iniciados em PDV.
 - `category`: obrigatório para receitas/despesas; proibido para transferências.
-- `type`: `receita`, `despesa`, `transferencia_interna`, `transferencia_externa`.
+- `contact`: opcional; deve pertencer à mesma empresa.
+- `type`: `receita`, `despesa`, `transferencia_interna`, `transferencia_externa`, `estorno`.
 - `linked_transaction`: preenchido automaticamente em transferências para apontar o par correspondente.
+- `related_transaction`: preenchido em estornos para apontar a transação original.
 
 ### Criando uma transação de PDV
 ```bash
@@ -126,6 +146,27 @@ Resultado: duas transações são criadas atômicamente (saída `transferencia_e
 
 ---
 
+### Estorno de transação
+
+Endpoint: `POST /api/v1/financials/transactions/{id}/refund/`
+
+Regras:
+- Apenas receitas podem ser estornadas; não estorne estornos.
+- Valor do estorno deve ser > 0 e não pode exceder o saldo disponível (`amount original - soma dos estornos`).
+- O estorno herda conta/categoria/caixa/contato da transação original.
+
+Payload:
+```json
+{
+  "amount": "2000.00",
+  "description": "Devolução parcial"
+}
+```
+
+Resposta: retorna a nova transação `type="estorno"` com `related_transaction` apontando para a original.
+
+---
+
 ## Bills (`/bills/`)
 
 Representa contas a pagar.
@@ -139,9 +180,11 @@ Representa contas a pagar.
   "amount": "3500.00",
   "due_date": "2025-11-30",
   "status": "a_vencer",
-  "payment_transaction": null
+  "payment_transaction": null,
+  "contact": 32
 }
 ```
+- `contact`: opcional; se informado, precisa ser fornecedor ou ambos. Rejeita contato de outra empresa ou `type=cliente`.
 
 ### Registrar pagamento
 `POST /api/v1/financials/bills/{id}/record-payment/`
@@ -179,6 +222,7 @@ Payload:
 ```
 
 Cria `Transaction` de `receita` e marca o `Income` como `recebido`.
+- `contact`: opcional; deve ser cliente ou ambos. Rejeita `type=fornecedor`.
 
 ---
 

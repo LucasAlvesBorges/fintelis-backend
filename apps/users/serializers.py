@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django.contrib.auth import authenticate
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -25,6 +28,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(password=password, **validated_data)
         return user
 
+    def validate_first_name(self, value):
+        return ' '.join(value.split())
+
+    def validate_last_name(self, value):
+        return ' '.join(value.split())
+
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -38,9 +47,47 @@ class LoginSerializer(serializers.Serializer):
         user = authenticate(request=request, username=email, password=password)
         if not user:
             raise serializers.ValidationError('Invalid credentials.')
+        if not user.has_active_access:
+            raise serializers.ValidationError('Assinatura inativa ou período de teste expirado.')
 
         attrs['user'] = user
         refresh = RefreshToken.for_user(user)
         attrs['refresh'] = str(refresh)
         attrs['access'] = str(refresh.access_token)
+        return attrs
+
+
+class SubscriptionActivationSerializer(serializers.Serializer):
+    start_trial = serializers.BooleanField(required=False, default=False)
+    plan = serializers.ChoiceField(
+        choices=User.SubscriptionPlan.choices,
+        required=False,
+        allow_blank=False,
+        allow_null=True,
+    )
+
+    def validate(self, attrs):
+        start_trial = attrs.get('start_trial') or False
+        plan = attrs.get('plan')
+        user = self.context['request'].user
+
+        if start_trial and plan:
+            raise serializers.ValidationError('Escolha trial ou plano, não ambos.')
+        if not start_trial and not plan:
+            raise serializers.ValidationError('Envie start_trial=true ou selecione um plano.')
+
+        if start_trial:
+            if user.trial_ends_at:
+                raise serializers.ValidationError('Trial já iniciado ou utilizado.')
+            return attrs
+
+        plan_durations = {
+            User.SubscriptionPlan.MONTHLY: timedelta(days=30),
+            User.SubscriptionPlan.QUARTERLY: timedelta(days=90),
+            User.SubscriptionPlan.SEMIANNUAL: timedelta(days=180),
+            User.SubscriptionPlan.ANNUAL: timedelta(days=365),
+        }
+
+        expires_at = timezone.now() + plan_durations[plan]
+        attrs['subscription_expires_at'] = expires_at
         return attrs

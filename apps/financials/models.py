@@ -2,10 +2,12 @@ import uuid
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.db import models, transaction as db_transaction
 from django.db.models import F
 
 from apps.companies.models import Company
+from apps.contacts.models import Contact
 
 
 class TimeStampedModel(models.Model):
@@ -30,6 +32,31 @@ class FrequencyChoices(models.TextChoices):
     YEARLY = 'yearly', 'Anual'
 
 
+class Bank(TimeStampedModel):
+    """
+    Catálogo global de bancos (Febraban).
+    Dados estáticos, não dependem de Company.
+    """
+
+    code = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=255)
+    cnpj = models.CharField(max_length=20, null=True, blank=True)
+    logo = models.FileField(
+        upload_to='bank_logos/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(['svg'])],
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'bank'
+        ordering = ['code']
+
+    def __str__(self):
+        return f'{self.code} - {self.name}'
+
+
 class BankAccount(TimeStampedModel):
     class Types(models.TextChoices):
         CONTA_CORRENTE = 'conta_corrente', 'Conta Corrente'
@@ -42,6 +69,13 @@ class BankAccount(TimeStampedModel):
         Company,
         on_delete=models.CASCADE,
         related_name='bank_accounts',
+    )
+    bank = models.ForeignKey(
+        Bank,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='accounts',
     )
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=25, choices=Types.choices)
@@ -109,6 +143,15 @@ class Category(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name='categories',
     )
+    code = models.CharField(max_length=50, null=True, blank=True)
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        related_name='subcategories',
+        null=True,
+        blank=True,
+        verbose_name='Categoria Pai',
+    )
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=10, choices=Types.choices)
 
@@ -117,13 +160,73 @@ class Category(TimeStampedModel):
         ordering = ['company__name', 'name']
         constraints = [
             models.UniqueConstraint(
-                fields=['company', 'name', 'type'],
-                name='uniq_category_company_name_type',
+                fields=['company', 'parent', 'name', 'type'],
+                name='uniq_category_structure',
+            ),
+            models.UniqueConstraint(
+                fields=['company', 'code'],
+                name='uniq_category_company_code',
             ),
         ]
 
     def __str__(self):
         return f'{self.name} ({self.get_type_display()})'
+
+    def clean(self):
+        super().clean()
+        if self.parent:
+            if self.pk and self.parent_id == self.pk:
+                raise ValidationError({'parent': 'Uma categoria não pode ser pai dela mesma.'})
+            if self.parent.company_id != self.company_id:
+                raise ValidationError({'parent': 'A categoria pai deve pertencer à mesma empresa.'})
+            if self.parent.type != self.type:
+                raise ValidationError(
+                    {'type': f'A subcategoria deve ser do tipo {self.parent.get_type_display()}, igual à categoria pai.'}
+                )
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self._generate_code()
+        super().save(*args, **kwargs)
+
+    def _generate_code(self) -> str:
+        if self.parent:
+            if not self.parent.code:
+                raise ValidationError({'parent': 'Categoria pai precisa ter código definido.'})
+            prefix = self.parent.code
+            with db_transaction.atomic():
+                siblings = (
+                    Category.objects.select_for_update()
+                    .filter(parent=self.parent, company=self.company)
+                    .exclude(pk=self.pk)
+                )
+                max_idx = 0
+                for sibling in siblings:
+                    if not sibling.code:
+                        continue
+                    try:
+                        idx = int(sibling.code.split('.')[-1])
+                    except ValueError:
+                        continue
+                    max_idx = max(max_idx, idx)
+                return f'{prefix}.{max_idx + 1}'
+
+        with db_transaction.atomic():
+            roots = (
+                Category.objects.select_for_update()
+                .filter(parent__isnull=True, company=self.company)
+                .exclude(pk=self.pk)
+            )
+            max_idx = 0
+            for root in roots:
+                if not root.code:
+                    continue
+                try:
+                    idx = int(root.code.split('.')[-1])
+                except ValueError:
+                    continue
+                max_idx = max(max_idx, idx)
+            return str(max_idx + 1)
 
 
 class Transaction(TimeStampedModel):
@@ -132,6 +235,7 @@ class Transaction(TimeStampedModel):
         DESPESA = 'despesa', 'Despesa'
         TRANSFERENCIA_INTERNA = 'transferencia_interna', 'Transferência Interna'
         TRANSFERENCIA_EXTERNA = 'transferencia_externa', 'Transferência Externa'
+        ESTORNO = 'estorno', 'Estorno / Devolução'
 
     company = models.ForeignKey(
         Company,
@@ -152,6 +256,20 @@ class Transaction(TimeStampedModel):
     )
     cash_register = models.ForeignKey(
         CashRegister,
+        on_delete=models.SET_NULL,
+        related_name='transactions',
+        null=True,
+        blank=True,
+    )
+    related_transaction = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        related_name='refunds',
+        null=True,
+        blank=True,
+    )
+    contact = models.ForeignKey(
+        Contact,
         on_delete=models.SET_NULL,
         related_name='transactions',
         null=True,
@@ -216,6 +334,13 @@ class Transaction(TimeStampedModel):
             errors['cash_register'] = 'Cash register must belong to the same company.'
         if self.category and self.category.company_id != self.company_id:
             errors['category'] = 'Category must belong to the same company.'
+        if self.contact and self.contact.company_id != self.company_id:
+            errors['contact'] = 'Contact must belong to the same company.'
+        if self.related_transaction:
+            if self.related_transaction_id == self.id:
+                errors['related_transaction'] = 'Transaction cannot reference itself as refund origin.'
+            elif self.related_transaction.company_id != self.company_id:
+                errors['related_transaction'] = 'Related transaction must belong to the same company.'
         if errors:
             raise ValidationError(errors)
 
@@ -227,6 +352,8 @@ class Transaction(TimeStampedModel):
             self.Types.TRANSFERENCIA_INTERNA,
         }:
             raise ValidationError({'category': 'Transfer transactions cannot have category.'})
+        if self.type == self.Types.ESTORNO:
+            return
         if self.category.type != self.type:
             raise ValidationError(
                 {'category': 'Category type must match transaction type.'}
@@ -311,9 +438,14 @@ class Transaction(TimeStampedModel):
         if tx_type in {
             Transaction.Types.DESPESA,
             Transaction.Types.TRANSFERENCIA_EXTERNA,
+            Transaction.Types.ESTORNO,
         }:
             return -amount
         return Decimal('0')
+
+    def get_total_refunded(self) -> Decimal:
+        total = self.refunds.aggregate(total=models.Sum('amount'))['total']
+        return total or Decimal('0')
 
 
 class Bill(TimeStampedModel):
@@ -340,6 +472,13 @@ class Bill(TimeStampedModel):
         null=True,
         blank=True,
     )
+    contact = models.ForeignKey(
+        Contact,
+        on_delete=models.SET_NULL,
+        related_name='bills',
+        null=True,
+        blank=True,
+    )
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     due_date = models.DateField()
@@ -357,6 +496,11 @@ class Bill(TimeStampedModel):
                 errors['category'] = 'Category must belong to the same company.'
             elif self.category.type != Category.Types.DESPESA:
                 errors['category'] = 'Bills must reference an expense category.'
+        if self.contact:
+            if self.contact.company_id != self.company_id:
+                errors['contact'] = 'Contact must belong to the same company.'
+            elif self.contact.type == Contact.Types.CLIENTE:
+                errors['contact'] = 'Contas a pagar devem ser vinculadas a um Fornecedor.'
         if self.payment_transaction:
             if self.payment_transaction.company_id != self.company_id:
                 errors['payment_transaction'] = 'Transaction must belong to the same company.'
@@ -395,6 +539,13 @@ class Income(TimeStampedModel):
         null=True,
         blank=True,
     )
+    contact = models.ForeignKey(
+        Contact,
+        on_delete=models.SET_NULL,
+        related_name='incomes',
+        null=True,
+        blank=True,
+    )
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     due_date = models.DateField()
@@ -412,6 +563,11 @@ class Income(TimeStampedModel):
                 errors['category'] = 'Category must belong to the same company.'
             elif self.category.type != Category.Types.RECEITA:
                 errors['category'] = 'Income must reference a revenue category.'
+        if self.contact:
+            if self.contact.company_id != self.company_id:
+                errors['contact'] = 'Contact must belong to the mesma empresa.'
+            elif self.contact.type == Contact.Types.FORNECEDOR:
+                errors['contact'] = 'Contas a receber devem ser vinculadas a um Cliente.'
         if self.payment_transaction:
             if self.payment_transaction.company_id != self.company_id:
                 errors['payment_transaction'] = 'Transaction must belong to the same company.'

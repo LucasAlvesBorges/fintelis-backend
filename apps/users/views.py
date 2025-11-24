@@ -5,7 +5,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import LoginSerializer, RegisterSerializer, UserAuthenticationSerializer
+from .serializers import (
+    LoginSerializer,
+    RegisterSerializer,
+    SubscriptionActivationSerializer,
+    UserAuthenticationSerializer,
+)
 
 
 class RegisterView(APIView):
@@ -45,6 +50,38 @@ class MeView(APIView):
     def get(self, request):
         user_data = UserAuthenticationSerializer(request.user).data
         return Response({'user': user_data})
+
+
+class SubscriptionActivationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = SubscriptionActivationSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+
+        if serializer.validated_data.get('start_trial'):
+            user.start_trial()
+            message = 'Trial de 15 dias iniciado.'
+        else:
+            plan = serializer.validated_data['plan']
+            expires_at = serializer.validated_data['subscription_expires_at']
+            user.subscription_plan = plan
+            user.subscription_active = True
+            user.subscription_expires_at = expires_at
+            user.save(update_fields=['subscription_plan', 'subscription_active', 'subscription_expires_at'])
+            message = f'Plano {plan} ativado.'
+
+        return Response({
+            'user': UserAuthenticationSerializer(user).data,
+            'subscription': {
+                'active': user.subscription_active,
+                'plan': user.subscription_plan,
+                'subscription_expires_at': user.subscription_expires_at,
+                'trial_ends_at': user.trial_ends_at,
+                'message': message,
+            },
+        })
 
 
 def set_auth_cookies(response, refresh_token: str, access_token: str):

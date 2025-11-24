@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from .models import (
+    Transaction,
+    Bank,
     BankAccount,
     Bill,
     CashRegister,
@@ -10,6 +12,7 @@ from .models import (
     RecurringIncome,
     Transaction,
 )
+from apps.contacts.models import Contact
 
 
 class CompanyContextMixin:
@@ -38,12 +41,29 @@ class CompanyScopedSerializer(CompanyContextMixin, serializers.Serializer):
     pass
 
 
+class BankSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Bank
+        fields = (
+            'id',
+            'code',
+            'name',
+            'cnpj',
+            'logo',
+            'is_active',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = fields
+
+
 class BankAccountSerializer(CompanyScopedModelSerializer):
     class Meta:
         model = BankAccount
         fields = (
             'id',
             'company',
+            'bank',
             'name',
             'type',
             'initial_balance',
@@ -52,6 +72,9 @@ class BankAccountSerializer(CompanyScopedModelSerializer):
             'updated_at',
         )
         read_only_fields = ('id', 'company', 'current_balance', 'created_at', 'updated_at')
+        extra_kwargs = {
+            'bank': {'required': False, 'allow_null': True},
+        }
 
 
 class CashRegisterSerializer(CompanyScopedModelSerializer):
@@ -71,21 +94,29 @@ class CashRegisterSerializer(CompanyScopedModelSerializer):
 
 
 class CategorySerializer(CompanyScopedModelSerializer):
+    company_filtered_fields = ('parent',)
+
     class Meta:
         model = Category
         fields = (
             'id',
             'company',
+            'code',
+            'parent',
             'name',
             'type',
             'created_at',
             'updated_at',
         )
         read_only_fields = ('id', 'company', 'created_at', 'updated_at')
+        extra_kwargs = {
+            'parent': {'required': False, 'allow_null': True},
+            'code': {'required': False, 'allow_null': True, 'allow_blank': True},
+        }
 
 
 class TransactionSerializer(CompanyScopedModelSerializer):
-    company_filtered_fields = ('bank_account', 'category', 'cash_register')
+    company_filtered_fields = ('bank_account', 'category', 'cash_register', 'contact')
 
     class Meta:
         model = Transaction
@@ -95,6 +126,8 @@ class TransactionSerializer(CompanyScopedModelSerializer):
             'bank_account',
             'category',
             'cash_register',
+            'contact',
+            'related_transaction',
             'linked_transaction',
             'description',
             'amount',
@@ -103,11 +136,19 @@ class TransactionSerializer(CompanyScopedModelSerializer):
             'created_at',
             'updated_at',
         )
-        read_only_fields = ('id', 'company', 'linked_transaction', 'created_at', 'updated_at')
+        read_only_fields = (
+            'id',
+            'company',
+            'linked_transaction',
+            'related_transaction',
+            'created_at',
+            'updated_at',
+        )
         extra_kwargs = {
             'bank_account': {'required': False, 'allow_null': True},
             'category': {'required': False, 'allow_null': True},
             'cash_register': {'required': False, 'allow_null': True},
+            'contact': {'required': False, 'allow_null': True},
         }
 
     def validate(self, attrs):
@@ -135,8 +176,32 @@ class TransactionSerializer(CompanyScopedModelSerializer):
         return attrs
 
 
+class TransactionRefundSerializer(CompanyScopedSerializer):
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    description = serializers.CharField(max_length=255, allow_blank=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        original: Transaction = self.context['original_transaction']
+        if original.type != Transaction.Types.RECEITA:
+            raise serializers.ValidationError('Apenas transações de receita podem ser estornadas.')
+        if original.related_transaction_id:
+            raise serializers.ValidationError('Não é possível estornar uma transação que já é estorno.')
+
+        if attrs['amount'] <= 0:
+            raise serializers.ValidationError({'amount': 'O valor do estorno deve ser maior que zero.'})
+
+        already_refunded = original.get_total_refunded()
+        remaining = original.amount - already_refunded
+        if attrs['amount'] > remaining:
+            raise serializers.ValidationError(
+                {'amount': f'O valor excede o saldo disponível para estorno (R$ {remaining}).'}
+            )
+        return attrs
+
+
 class BillSerializer(CompanyScopedModelSerializer):
-    company_filtered_fields = ('category',)
+    company_filtered_fields = ('category', 'contact')
 
     class Meta:
         model = Bill
@@ -144,6 +209,7 @@ class BillSerializer(CompanyScopedModelSerializer):
             'id',
             'company',
             'category',
+            'contact',
             'payment_transaction',
             'description',
             'amount',
@@ -153,10 +219,13 @@ class BillSerializer(CompanyScopedModelSerializer):
             'updated_at',
         )
         read_only_fields = ('id', 'company', 'payment_transaction', 'created_at', 'updated_at')
+        extra_kwargs = {
+            'contact': {'required': False, 'allow_null': True},
+        }
 
 
 class IncomeSerializer(CompanyScopedModelSerializer):
-    company_filtered_fields = ('category',)
+    company_filtered_fields = ('category', 'contact')
 
     class Meta:
         model = Income
@@ -164,6 +233,7 @@ class IncomeSerializer(CompanyScopedModelSerializer):
             'id',
             'company',
             'category',
+            'contact',
             'payment_transaction',
             'description',
             'amount',
@@ -173,6 +243,9 @@ class IncomeSerializer(CompanyScopedModelSerializer):
             'updated_at',
         )
         read_only_fields = ('id', 'company', 'payment_transaction', 'created_at', 'updated_at')
+        extra_kwargs = {
+            'contact': {'required': False, 'allow_null': True},
+        }
 
 
 class RecurringBillSerializer(CompanyScopedModelSerializer):

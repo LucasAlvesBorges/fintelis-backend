@@ -5,8 +5,10 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from apps.companies.models import Company, Membership
+from django.utils import timezone
 
 from .models import (
+    Bank,
     BankAccount,
     Bill,
     CashRegister,
@@ -17,6 +19,7 @@ from .models import (
     Transaction,
 )
 from .serializers import (
+    BankSerializer,
     BankAccountSerializer,
     BillPaymentSerializer,
     BillSerializer,
@@ -28,6 +31,7 @@ from .serializers import (
     RecurringIncomeSerializer,
     TransactionSerializer,
     TransferSerializer,
+    TransactionRefundSerializer,
 )
 
 
@@ -108,8 +112,14 @@ class CompanyScopedViewSet(ActiveCompanyMixin, viewsets.ModelViewSet):
         return context
 
 
+class BankViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Bank.objects.filter(is_active=True).order_by('code')
+    serializer_class = BankSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
 class BankAccountViewSet(CompanyScopedViewSet):
-    queryset = BankAccount.objects.all().select_related('company')
+    queryset = BankAccount.objects.all().select_related('company', 'bank')
     serializer_class = BankAccountSerializer
 
 
@@ -119,7 +129,7 @@ class CashRegisterViewSet(CompanyScopedViewSet):
 
 
 class CategoryViewSet(CompanyScopedViewSet):
-    queryset = Category.objects.all().select_related('company')
+    queryset = Category.objects.all().select_related('company', 'parent')
     serializer_class = CategorySerializer
 
 
@@ -127,9 +137,11 @@ class TransactionViewSet(CompanyScopedViewSet):
     queryset = Transaction.objects.all().select_related(
         'company',
         'bank_account',
+        'bank_account__bank',
         'category',
         'cash_register',
         'linked_transaction',
+        'contact',
     )
     serializer_class = TransactionSerializer
 
@@ -166,9 +178,35 @@ class TransactionViewSet(CompanyScopedViewSet):
         response_serializer = self.get_serializer([outgoing, incoming], many=True)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['post'], url_path='refund')
+    def refund(self, request, pk=None):
+        original = self.get_object()
+        serializer = TransactionRefundSerializer(
+            data=request.data,
+            context={'company': self.get_active_company(), 'original_transaction': original},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        with db_transaction.atomic():
+            refund = Transaction.objects.create(
+                company=original.company,
+                bank_account=original.bank_account,
+                category=original.category,
+                cash_register=original.cash_register,
+                contact=original.contact,
+                description=f"Estorno: {data['description']}",
+                amount=data['amount'],
+                type=Transaction.Types.ESTORNO,
+                transaction_date=timezone.now().date(),
+                related_transaction=original,
+            )
+
+        return Response(TransactionSerializer(refund, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+
 
 class BillViewSet(CompanyScopedViewSet):
-    queryset = Bill.objects.all().select_related('company', 'category', 'payment_transaction')
+    queryset = Bill.objects.all().select_related('company', 'category', 'payment_transaction', 'contact')
     serializer_class = BillSerializer
 
     @action(detail=True, methods=['post'], url_path='record-payment')
@@ -201,7 +239,7 @@ class BillViewSet(CompanyScopedViewSet):
 
 
 class IncomeViewSet(CompanyScopedViewSet):
-    queryset = Income.objects.all().select_related('company', 'category', 'payment_transaction')
+    queryset = Income.objects.all().select_related('company', 'category', 'payment_transaction', 'contact')
     serializer_class = IncomeSerializer
 
     @action(detail=True, methods=['post'], url_path='record-payment')

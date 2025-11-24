@@ -42,6 +42,43 @@ Request body:
 
 Resposta (200) idêntica à de cadastro, com o mesmo par de cookies sendo atualizado. Em caso de credenciais inválidas o backend retorna `400` com a mensagem `Invalid credentials.`.
 
+#### Regras de assinatura/trial
+
+- O trial **não é iniciado automaticamente**; o usuário precisa optar por ele via API. Quando iniciado, dura 15 dias e popula `trial_ends_at`.
+- O login só é permitido enquanto o trial estiver válido ou houver uma assinatura ativa. Caso contrário, a API devolve `400` com `Assinatura inativa ou período de teste expirado.`.
+- Planos atuais (pagamento via Pix):
+  - 1 mês: R$500
+  - 3 meses: R$1500
+  - 6 meses: R$3000
+  - 1 ano: R$6000
+
+#### Ativação de trial ou plano (`POST /api/v1/users/subscription/`)
+
+- Autenticado (cookies). Envie **um** dos dois formatos:
+  - Iniciar trial:  
+    ```json
+    { "start_trial": true }
+    ```
+  - Ativar plano:  
+    ```json
+    { "plan": "monthly" }
+    ```
+- Se `start_trial` e `plan` forem enviados juntos, a API retorna erro. Trial só pode ser iniciado uma vez por usuário.
+- Resposta (200) inclui `user` e objeto `subscription` com: `active`, `plan`, `subscription_expires_at`, `trial_ends_at`, `message`. Exemplo para trial:
+
+```json
+{
+  "user": { "first_name": "Ana", "last_name": "Silva" },
+  "subscription": {
+    "active": false,
+    "plan": null,
+    "subscription_expires_at": null,
+    "trial_ends_at": "2024-06-04T12:00:00Z",
+    "message": "Trial de 15 dias iniciado."
+  }
+}
+```
+
 ### Sessão atual (`GET /api/v1/users/me/`)
 
 Sem body. Retorna 200 com o mesmo objeto `user` enquanto o cookie `access_token` for válido. Se o cookie tiver expirado ou sido removido, retorna `401`. Útil para validar se o usuário ainda está autenticado quando a aplicação carrega ou após um refresh.

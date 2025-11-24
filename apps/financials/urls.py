@@ -1,6 +1,7 @@
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    BankViewSet,
     BankAccountViewSet,
     BillViewSet,
     CashRegisterViewSet,
@@ -12,6 +13,7 @@ from .views import (
 )
 
 router = DefaultRouter()
+router.register('banks', BankViewSet, basename='banks')
 router.register('bank-accounts', BankAccountViewSet, basename='bank-accounts')
 router.register('cash-registers', CashRegisterViewSet, basename='cash-registers')
 router.register('categories', CategoryViewSet, basename='categories')
