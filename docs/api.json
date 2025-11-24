@@ -1,0 +1,979 @@
+{
+  "info": {
+    "_postman_id": "2d74a2f5-1572-4b01-9b3c-83fed3673d79",
+    "name": "Fintelis Financials API",
+    "description": "Cole\u00e7\u00e3o que re\u00fane as rotas de `/api/v1/financials/` e os recursos de usu\u00e1rios/empresas. Use os endpoints de Users para receber os cookies JWT e invoque os demais com o header X-Company-ID. Por padr\u00e3o o baseUrl aponta para http://0.0.0.0:8000/.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://0.0.0.0:8000",
+      "type": "string",
+      "description": "Base URL do backend (dev: http://0.0.0.0:8000)."
+    },
+    {
+      "key": "companyId",
+      "value": "",
+      "type": "string",
+      "description": "ID da empresa ativa utilizado no header X-Company-ID."
+    },
+    {
+      "key": "billId",
+      "value": "",
+      "type": "string",
+      "description": "Placeholder para o ID de um Bill ao registrar pagamentos."
+    },
+    {
+      "key": "incomeId",
+      "value": "",
+      "type": "string",
+      "description": "Placeholder para o ID de um Income ao registrar recebimentos."
+    }
+  ],
+  "item": [
+    {
+      "name": "Users",
+      "description": "Autentica\u00e7\u00e3o via cookies JWT emitidos pelo app users.",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Ana\",\n  \"last_name\": \"Silva\",\n  \"email\": \"ana@example.com\",\n  \"password\": \"SenhaForte123!\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/register/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "register",
+                ""
+              ]
+            },
+            "description": "Cria um usu\u00e1rio e grava os cookies `access_token` e `refresh_token`."
+          },
+          "response": []
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ana@example.com\",\n  \"password\": \"SenhaForte123!\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/login/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "login",
+                ""
+              ]
+            },
+            "description": "Autentica o usu\u00e1rio e renova os cookies JWT."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Companies",
+      "description": "Gerenciamento de empresas e v\u00ednculos de usu\u00e1rios (Memberships).",
+      "item": [
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                ""
+              ]
+            },
+            "description": "Retorna as empresas \u00e0s quais o usu\u00e1rio autenticado pertence."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Company",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"ACME LTDA\",\n  \"cnpj\": \"12.345.678/0001-90\",\n  \"email\": \"financeiro@acme.com\",\n  \"type\": \"comercio\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                ""
+              ]
+            },
+            "description": "Cria uma empresa e vincula o usu\u00e1rio autenticado como admin."
+          },
+          "response": []
+        },
+        {
+          "name": "List Memberships",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/memberships/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "memberships",
+                ""
+              ]
+            },
+            "description": "Lista os v\u00ednculos de usu\u00e1rios com empresas, desde que o usu\u00e1rio tenha acesso."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Membership",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": 1,\n  \"user\": 2,\n  \"role\": \"finance\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/memberships/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "companies",
+                "memberships",
+                ""
+              ]
+            },
+            "description": "Cria um v\u00ednculo para outro usu\u00e1rio (apenas admins da empresa podem executar)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Bank Accounts",
+      "description": "CRUD de contas banc\u00e1rias. Todos os registros pertencem \u00e0 empresa ativa e exigem o header X-Company-ID.",
+      "item": [
+        {
+          "name": "List Bank Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text",
+                "description": "Empresa ativa."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/bank-accounts/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "bank-accounts",
+                ""
+              ]
+            },
+            "description": "Retorna as contas banc\u00e1rias vis\u00edveis para o usu\u00e1rio autenticado na empresa ativa."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Bank Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Banco de Cr\u00e9dito\",\n  \"type\": \"banco_de_creditos\",\n  \"initial_balance\": \"25000.00\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/bank-accounts/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "bank-accounts",
+                ""
+              ]
+            },
+            "description": "Cria uma conta banc\u00e1ria com saldo inicial opcional. O campo company \u00e9 inferido pelo middleware multi-tenant."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cash Registers",
+      "description": "Caixas f\u00edsicos/PDV que direcionam transa\u00e7\u00f5es para uma conta banc\u00e1ria padr\u00e3o.",
+      "item": [
+        {
+          "name": "List Cash Registers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/cash-registers/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "cash-registers",
+                ""
+              ]
+            },
+            "description": "Lista de caixas com o respectivo default_bank_account."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Cash Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Caixa 1\",\n  \"default_bank_account\": 3\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/cash-registers/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "cash-registers",
+                ""
+              ]
+            },
+            "description": "Cria um caixa e amarra ao banco padr\u00e3o que receber\u00e1 as movimenta\u00e7\u00f5es."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "description": "Categorias de receita ou despesa \u00fanicas por (company, name, type).",
+      "item": [
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/categories/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "categories",
+                ""
+              ]
+            },
+            "description": "Retorna categorias de receita e despesa."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Assinaturas SaaS\",\n  \"type\": \"despesa\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/categories/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "categories",
+                ""
+              ]
+            },
+            "description": "Cria uma categoria. Tipos aceitos: receita ou despesa."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "description": "Movimenta\u00e7\u00f5es financeiras gerais e transa\u00e7\u00f5es iniciadas via PDV.",
+      "item": [
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/transactions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "transactions",
+                ""
+              ]
+            },
+            "description": "Lista transa\u00e7\u00f5es de receita, despesa e transfer\u00eancias."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cash_register\": 5,\n  \"description\": \"Venda de bilhetes\",\n  \"amount\": \"180.00\",\n  \"type\": \"receita\",\n  \"transaction_date\": \"2025-11-10\",\n  \"category\": 8\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/transactions/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "transactions",
+                ""
+              ]
+            },
+            "description": "Cria uma transa\u00e7\u00e3o. Para movimentos de PDV informe cash_register; o backend injeta o bank_account do caixa."
+          },
+          "response": []
+        },
+        {
+          "name": "Transfer Between Accounts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_bank_account\": 3,\n  \"to_bank_account\": 7,\n  \"amount\": \"1200.00\",\n  \"transaction_date\": \"2025-11-10\",\n  \"description\": \"Reserva mensal\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/transactions/transfer/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "transactions",
+                "transfer",
+                ""
+              ]
+            },
+            "description": "Cria simultaneamente duas transa\u00e7\u00f5es linkadas (sa\u00edda/entrada) para transferir valores entre contas banc\u00e1rias."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Bills",
+      "description": "Contas a pagar e seus pagamentos registrados como Transactions de despesa.",
+      "item": [
+        {
+          "name": "List Bills",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/bills/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "bills",
+                ""
+              ]
+            },
+            "description": "Retorna contas a pagar com status a_vencer ou quitada."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": 12,\n  \"description\": \"Aluguel novembro\",\n  \"amount\": \"3500.00\",\n  \"due_date\": \"2025-11-30\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/bills/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "bills",
+                ""
+              ]
+            },
+            "description": "Inclui uma nova conta a pagar."
+          },
+          "response": []
+        },
+        {
+          "name": "Record Bill Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bank_account\": 3,\n  \"transaction_date\": \"2025-11-05\",\n  \"description\": \"PIX aluguel\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/bills/{{billId}}/record-payment/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "bills",
+                "{{billId}}",
+                "record-payment",
+                ""
+              ]
+            },
+            "description": "Marca o Bill como quitado e cria a Transaction de despesa associada."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Incomes",
+      "description": "Contas a receber, equivalentes aos Bills por\u00e9m para receitas.",
+      "item": [
+        {
+          "name": "List Incomes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/incomes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "incomes",
+                ""
+              ]
+            },
+            "description": "Retorna contas a receber com status pendente ou recebido."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Income",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": 8,\n  \"description\": \"Receita contrato ACME\",\n  \"amount\": \"5400.00\",\n  \"due_date\": \"2025-11-12\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/incomes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "incomes",
+                ""
+              ]
+            },
+            "description": "Cria uma conta a receber pendente."
+          },
+          "response": []
+        },
+        {
+          "name": "Record Income Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bank_account\": 7,\n  \"transaction_date\": \"2025-11-12\",\n  \"description\": \"Receita contrato ACME\"\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/incomes/{{incomeId}}/record-payment/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "incomes",
+                "{{incomeId}}",
+                "record-payment",
+                ""
+              ]
+            },
+            "description": "Marca o Income como recebido e gera a Transaction de receita correspondente."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Recurring Bills",
+      "description": "Moldes de contas a pagar que geram Bills automaticamente via job di\u00e1rio.",
+      "item": [
+        {
+          "name": "List Recurring Bills",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/recurring-bills/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "recurring-bills",
+                ""
+              ]
+            },
+            "description": "Lista moldes ativos e inativos."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Recurring Bill",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": 12,\n  \"description\": \"Licen\u00e7a ERP\",\n  \"amount\": \"800.00\",\n  \"frequency\": \"monthly\",\n  \"start_date\": \"2025-01-01\",\n  \"next_due_date\": \"2025-01-01\",\n  \"is_active\": true\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/recurring-bills/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "recurring-bills",
+                ""
+              ]
+            },
+            "description": "Configura um molde recorrente que criar\u00e1 Bills conforme frequency."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Recurring Incomes",
+      "description": "Moldes de receitas recorrentes que viram Incomes pendentes automaticamente.",
+      "item": [
+        {
+          "name": "List Recurring Incomes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/recurring-incomes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "recurring-incomes",
+                ""
+              ]
+            },
+            "description": "Lista moldes que geram contas a receber automaticamente."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Recurring Income",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Company-ID",
+                "value": "{{companyId}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": 8,\n  \"description\": \"Mensalidade cliente XPTO\",\n  \"amount\": \"1500.00\",\n  \"frequency\": \"monthly\",\n  \"start_date\": \"2025-01-05\",\n  \"next_due_date\": \"2025-01-05\",\n  \"is_active\": true\n}\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financials/recurring-incomes/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financials",
+                "recurring-incomes",
+                ""
+              ]
+            },
+            "description": "Cria o molde recorrente equivalente a uma assinatura/contrato de receita."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

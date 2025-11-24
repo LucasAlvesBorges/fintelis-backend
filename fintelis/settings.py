@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'apps.users',
     'apps.companies',
     'apps.financials',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -100,6 +102,13 @@ REST_FRAMEWORK = {
     ],
 }
 
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+CORS_ALLOW_CREDENTIALS = True
+
 if not DEBUG:
     REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = [
         'rest_framework.renderers.JSONRenderer',
@@ -154,3 +163,6 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+print(CORS_ALLOWED_ORIGINS)
