@@ -1,6 +1,7 @@
 from rest_framework import permissions, viewsets
 
-from apps.financials.views import CompanyScopedViewSet, IsCompanyMember
+from apps.financials.permissions import IsCompanyMember
+from apps.financials.views import CompanyScopedViewSet
 from .models import Contact
 from .serializers import ContactSerializer
 

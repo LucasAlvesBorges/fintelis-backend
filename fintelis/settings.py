@@ -98,6 +98,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'apps.users.authentication.CompanyJWTAuthentication',
         'apps.users.authentication.CookieJWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
@@ -124,6 +125,10 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_SECURE': False,
     'AUTH_COOKIE_HTTP_ONLY': True,
     'AUTH_COOKIE_SAMESITE': 'Lax',
+    # Company-bound token settings: issued by /api/v1/users/company-token/,
+    # sent via header X-Company-Token or cookie company_access_token.
+    'COMPANY_ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
+    'COMPANY_AUTH_COOKIE': 'company_access_token',
 }
 
 AUTH_USER_MODEL = 'users.User'

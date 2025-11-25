@@ -5,6 +5,8 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.companies.models import Company, Membership
+from .authentication import CompanyAccessToken
 from .models import User, name_validator
 
 class UserAuthenticationSerializer(serializers.ModelSerializer):
@@ -90,4 +92,28 @@ class SubscriptionActivationSerializer(serializers.Serializer):
 
         expires_at = timezone.now() + plan_durations[plan]
         attrs['subscription_expires_at'] = expires_at
+        return attrs
+
+
+class CompanyTokenObtainSerializer(serializers.Serializer):
+    company_id = serializers.UUIDField()
+
+    def validate(self, attrs):
+        request = self.context['request']
+        user = request.user
+        company_id = attrs['company_id']
+
+        try:
+            company = Company.objects.get(pk=company_id)
+        except Company.DoesNotExist as exc:
+            raise serializers.ValidationError('Empresa não encontrada.') from exc
+
+        if not Membership.objects.filter(user=user, company=company).exists():
+            raise serializers.ValidationError('Usuário não pertence a esta empresa.')
+
+        token = CompanyAccessToken.for_user(user)
+        token['company_id'] = str(company.id)
+        attrs['token'] = str(token)
+        attrs['company'] = company
+        attrs['expires_at'] = token['exp']
         return attrs

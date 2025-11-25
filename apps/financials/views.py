@@ -4,9 +4,9 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
-from apps.companies.models import Company, Membership
 from django.utils import timezone
 
+from .mixins import ActiveCompanyMixin
 from .models import (
     Bank,
     BankAccount,
@@ -33,74 +33,7 @@ from .serializers import (
     TransferSerializer,
     TransactionRefundSerializer,
 )
-
-
-class ActiveCompanyMixin:
-    """
-    Helper mixin that resolves the active company either from an attribute injected
-    by middleware or from the X-Company-ID header / query params. It also validates
-    that the authenticated user belongs to that company via Membership.
-    """
-
-    def get_active_company(self) -> Company:
-        if hasattr(self.request, "_cached_active_company"):
-            return self.request._cached_active_company
-
-        company = getattr(self.request, "active_company", None)
-        if company:
-            self._ensure_membership(company)
-            self.request._cached_active_company = company
-            return company
-
-        company_id = (
-            self.request.headers.get("X-Company-ID")
-            or self.request.query_params.get("company_id")
-            or self.request.data.get("company_id")
-            or self.request.data.get("company")
-        )
-
-        if not company_id:
-            # Fallback: Try to find a company via user's membership
-            # If the user belongs to multiple companies, this will pick the first one found.
-            # Ideally, the frontend should specify, but this handles the "default" case.
-            if self.request.user and self.request.user.is_authenticated:
-                membership = Membership.objects.filter(user=self.request.user).first()
-                if membership:
-                    self.request._cached_active_company = membership.company
-                    return membership.company
-
-            raise ValidationError(
-                "Active company not provided. Use the X-Company-ID header or ensure user has a membership."
-            )
-
-        try:
-            company = Company.objects.get(pk=company_id)
-        except Company.DoesNotExist as exc:
-            raise ValidationError("Company not found.") from exc
-
-        self._ensure_membership(company)
-        self.request._cached_active_company = company
-        return company
-
-    def _ensure_membership(self, company: Company) -> None:
-        user = self.request.user
-        if not user or not user.is_authenticated:
-            raise PermissionDenied("Authentication required.")
-        if not Membership.objects.filter(company=company, user=user).exists():
-            raise PermissionDenied("You do not belong to this company.")
-
-
-class IsCompanyMember(permissions.BasePermission):
-    """
-    Ensures requests include an active company and that the user belongs to it.
-    """
-
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        # get_active_company raises ValidationError or PermissionDenied with useful messages.
-        view.get_active_company()
-        return True
+from .permissions import IsCompanyMember
 
 
 class CompanyScopedViewSet(ActiveCompanyMixin, viewsets.ModelViewSet):
