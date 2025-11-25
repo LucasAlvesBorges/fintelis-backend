@@ -77,6 +77,7 @@ class BankAccount(TimeStampedModel):
         related_name="accounts",
     )
     name = models.CharField(max_length=100)
+    description = models.CharField(max_length=255, null=True, blank=True)
     type = models.CharField(max_length=25, choices=Types.choices)
     initial_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     current_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0)
