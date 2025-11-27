@@ -9,10 +9,11 @@ from apps.companies.models import Company, Membership
 from .authentication import CompanyAccessToken
 from .models import User, name_validator
 
+
 class UserAuthenticationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('first_name', 'last_name', 'must_change_password')
+        fields = ("first_name", "last_name", "must_change_password")
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -23,18 +24,18 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('first_name', 'last_name', 'email', 'phone_number', 'password')
+        fields = ("first_name", "last_name", "email", "phone_number", "password")
 
     def create(self, validated_data):
-        password = validated_data.pop('password')
+        password = validated_data.pop("password")
         user = User.objects.create_user(password=password, **validated_data)
         return user
 
     def validate_first_name(self, value):
-        return ' '.join(value.split())
+        return " ".join(value.split())
 
     def validate_last_name(self, value):
-        return ' '.join(value.split())
+        return " ".join(value.split())
 
 
 class MembershipUserCreateSerializer(RegisterSerializer):
@@ -46,36 +47,27 @@ class MembershipUserCreateSerializer(RegisterSerializer):
     def create(self, validated_data):
         user = super().create(validated_data)
         user.must_change_password = True
-        
+
         # Herda assinatura/trial do usuário que está criando o convite (pai)
-        invited_by = self.context.get('invited_by')
+        invited_by = self.context.get("invited_by")
         if invited_by:
             # Copia trial se o usuário pai tem trial ativo
             if invited_by.trial_ends_at and invited_by.has_active_access:
                 from django.utils import timezone
                 from datetime import timedelta
+
                 # Calcula o tempo restante do trial do pai
                 remaining_days = (invited_by.trial_ends_at - timezone.now()).days
                 if remaining_days > 0:
                     user.trial_ends_at = timezone.now() + timedelta(days=remaining_days)
-            
-            # Copia subscription se o usuário pai tem subscription ativa
-            if invited_by.subscription_active:
-                user.subscription_active = True
-                user.subscription_plan = invited_by.subscription_plan
-                user.subscription_expires_at = invited_by.subscription_expires_at
-        
+
         # Se não herdou nada e não tem trial/subscription, ativa trial padrão
-        if not user.trial_ends_at and not user.subscription_active:
+        if not user.trial_ends_at:
             user.start_trial()
-        
-        user.save(update_fields=[
-            'must_change_password',
-            'trial_ends_at',
-            'subscription_active',
-            'subscription_plan',
-            'subscription_expires_at'
-        ])
+
+        user.save(
+            update_fields=["must_change_password", "trial_ends_at", "trial_ends_at"]
+        )
         return user
 
 
@@ -84,56 +76,20 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        request = self.context.get('request')
-        email = attrs.get('email')
-        password = attrs.get('password')
+        request = self.context.get("request")
+        email = attrs.get("email")
+        password = attrs.get("password")
 
         user = authenticate(request=request, username=email, password=password)
         if not user:
-            raise serializers.ValidationError('Invalid credentials.')
+            raise serializers.ValidationError("Invalid credentials.")
         if not user.has_active_access:
-            raise serializers.ValidationError('Assinatura inativa ou período de teste expirado.')
+            raise serializers.ValidationError("Período de teste expirado.")
 
-        attrs['user'] = user
+        attrs["user"] = user
         refresh = RefreshToken.for_user(user)
-        attrs['refresh'] = str(refresh)
-        attrs['access'] = str(refresh.access_token)
-        return attrs
-
-
-class SubscriptionActivationSerializer(serializers.Serializer):
-    start_trial = serializers.BooleanField(required=False, default=False)
-    plan = serializers.ChoiceField(
-        choices=User.SubscriptionPlan.choices,
-        required=False,
-        allow_blank=False,
-        allow_null=True,
-    )
-
-    def validate(self, attrs):
-        start_trial = attrs.get('start_trial') or False
-        plan = attrs.get('plan')
-        user = self.context['request'].user
-
-        if start_trial and plan:
-            raise serializers.ValidationError('Escolha trial ou plano, não ambos.')
-        if not start_trial and not plan:
-            raise serializers.ValidationError('Envie start_trial=true ou selecione um plano.')
-
-        if start_trial:
-            if user.trial_ends_at:
-                raise serializers.ValidationError('Trial já iniciado ou utilizado.')
-            return attrs
-
-        plan_durations = {
-            User.SubscriptionPlan.MONTHLY: timedelta(days=30),
-            User.SubscriptionPlan.QUARTERLY: timedelta(days=90),
-            User.SubscriptionPlan.SEMIANNUAL: timedelta(days=180),
-            User.SubscriptionPlan.ANNUAL: timedelta(days=365),
-        }
-
-        expires_at = timezone.now() + plan_durations[plan]
-        attrs['subscription_expires_at'] = expires_at
+        attrs["refresh"] = str(refresh)
+        attrs["access"] = str(refresh.access_token)
         return attrs
 
 
@@ -141,23 +97,23 @@ class CompanyTokenObtainSerializer(serializers.Serializer):
     company_id = serializers.UUIDField()
 
     def validate(self, attrs):
-        request = self.context['request']
+        request = self.context["request"]
         user = request.user
-        company_id = attrs['company_id']
+        company_id = attrs["company_id"]
 
         try:
             company = Company.objects.get(pk=company_id)
         except Company.DoesNotExist as exc:
-            raise serializers.ValidationError('Empresa não encontrada.') from exc
+            raise serializers.ValidationError("Empresa não encontrada.") from exc
 
         if not Membership.objects.filter(user=user, company=company).exists():
-            raise serializers.ValidationError('Usuário não pertence a esta empresa.')
+            raise serializers.ValidationError("Usuário não pertence a esta empresa.")
 
         token = CompanyAccessToken.for_user(user)
-        token['company_id'] = str(company.id)
-        attrs['token'] = str(token)
-        attrs['company'] = company
-        attrs['expires_at'] = token['exp']
+        token["company_id"] = str(company.id)
+        attrs["token"] = str(token)
+        attrs["company"] = company
+        attrs["expires_at"] = token["exp"]
         return attrs
 
 
@@ -166,19 +122,23 @@ class PasswordChangeSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate(self, attrs):
-        user = self.context['request'].user
-        if not user.check_password(attrs['current_password']):
-            raise serializers.ValidationError({'current_password': 'Senha atual incorreta.'})
+        user = self.context["request"].user
+        if not user.check_password(attrs["current_password"]):
+            raise serializers.ValidationError(
+                {"current_password": "Senha atual incorreta."}
+            )
 
-        if attrs['new_password'] == attrs['current_password']:
-            raise serializers.ValidationError({'new_password': 'Nova senha deve ser diferente da atual.'})
+        if attrs["new_password"] == attrs["current_password"]:
+            raise serializers.ValidationError(
+                {"new_password": "Nova senha deve ser diferente da atual."}
+            )
 
-        password_validation.validate_password(attrs['new_password'], user=user)
+        password_validation.validate_password(attrs["new_password"], user=user)
         return attrs
 
     def save(self, **kwargs):
-        user = self.context['request'].user
-        user.set_password(self.validated_data['new_password'])
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
         user.must_change_password = False
-        user.save(update_fields=['password', 'must_change_password'])
+        user.save(update_fields=["password", "must_change_password"])
         return user

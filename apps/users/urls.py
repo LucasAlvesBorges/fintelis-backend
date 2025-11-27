@@ -7,15 +7,15 @@ from .views import (
     MeView,
     MyInvitationsView,
     RegisterView,
-    SubscriptionActivationView,
 )
 
 urlpatterns = [
-    path('register/', RegisterView.as_view(), name='users-register'),
-    path('login/', LoginView.as_view(), name='users-login'),
-    path('me/', MeView.as_view(), name='users-me'),
-    path('subscription/', SubscriptionActivationView.as_view(), name='users-subscription'),
-    path('company-token/', CompanyTokenView.as_view(), name='users-company-token'),
-    path('change-password/', ChangePasswordView.as_view(), name='users-change-password'),
-    path('my-invitations/', MyInvitationsView.as_view(), name='users-my-invitations'),
+    path("register/", RegisterView.as_view(), name="users-register"),
+    path("login/", LoginView.as_view(), name="users-login"),
+    path("me/", MeView.as_view(), name="users-me"),
+    path("company-token/", CompanyTokenView.as_view(), name="users-company-token"),
+    path(
+        "change-password/", ChangePasswordView.as_view(), name="users-change-password"
+    ),
+    path("my-invitations/", MyInvitationsView.as_view(), name="users-my-invitations"),
 ]
