@@ -68,7 +68,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     must_change_password = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
-    trial_ends_at = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
@@ -82,17 +81,3 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
-    @property
-    def has_active_access(self) -> bool:
-        """
-        Allows login if trial is still valid or there is an active subscription.
-        """
-        now = timezone.now()
-        if self.trial_ends_at and now <= self.trial_ends_at:
-            return True
-
-        return False
-
-    def start_trial(self):
-        self.trial_ends_at = default_trial_end()
-        self.save(update_fields=["trial_ends_at"])

@@ -1,7 +1,4 @@
-from datetime import timedelta
-
-from django.contrib.auth import authenticate, password_validation
-from django.utils import timezone
+from django.contrib.auth import authenticate
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -48,26 +45,7 @@ class MembershipUserCreateSerializer(RegisterSerializer):
         user = super().create(validated_data)
         user.must_change_password = True
 
-        # Herda assinatura/trial do usuário que está criando o convite (pai)
-        invited_by = self.context.get("invited_by")
-        if invited_by:
-            # Copia trial se o usuário pai tem trial ativo
-            if invited_by.trial_ends_at and invited_by.has_active_access:
-                from django.utils import timezone
-                from datetime import timedelta
-
-                # Calcula o tempo restante do trial do pai
-                remaining_days = (invited_by.trial_ends_at - timezone.now()).days
-                if remaining_days > 0:
-                    user.trial_ends_at = timezone.now() + timedelta(days=remaining_days)
-
-        # Se não herdou nada e não tem trial/subscription, ativa trial padrão
-        if not user.trial_ends_at:
-            user.start_trial()
-
-        user.save(
-            update_fields=["must_change_password", "trial_ends_at", "trial_ends_at"]
-        )
+        user.save(update_fields=["must_change_password"])
         return user
 
 
@@ -83,8 +61,6 @@ class LoginSerializer(serializers.Serializer):
         user = authenticate(request=request, username=email, password=password)
         if not user:
             raise serializers.ValidationError("Invalid credentials.")
-        if not user.has_active_access:
-            raise serializers.ValidationError("Período de teste expirado.")
 
         attrs["user"] = user
         refresh = RefreshToken.for_user(user)
@@ -128,12 +104,11 @@ class PasswordChangeSerializer(serializers.Serializer):
                 {"current_password": "Senha atual incorreta."}
             )
 
+        # Regras flexíveis: apenas exige que nova senha seja diferente da atual
         if attrs["new_password"] == attrs["current_password"]:
             raise serializers.ValidationError(
                 {"new_password": "Nova senha deve ser diferente da atual."}
             )
-
-        password_validation.validate_password(attrs["new_password"], user=user)
         return attrs
 
     def save(self, **kwargs):

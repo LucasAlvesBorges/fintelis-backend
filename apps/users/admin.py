@@ -16,7 +16,6 @@ class UserAdmin(BaseUserAdmin):
         "must_change_password",
         "is_staff",
         "is_active",
-        "has_active_access",
     )
     list_filter = (
         "is_active",
@@ -36,13 +35,6 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
         (
-            "Trial",
-            {
-                "fields": ("trial_ends_at",),
-                "description": "Informações sobre trial do usuário.",
-            },
-        ),
-        (
             "Permissions",
             {
                 "fields": (
@@ -56,7 +48,7 @@ class UserAdmin(BaseUserAdmin):
         ),
         ("Important dates", {"fields": ("last_login", "created_at", "updated_at")}),
     )
-    readonly_fields = ("created_at", "updated_at", "last_login", "has_active_access")
+    readonly_fields = ("created_at", "updated_at", "last_login")
     add_fieldsets = (
         (
             None,
@@ -75,9 +67,3 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
-    def has_active_access(self, obj):
-        """Exibe se o usuário tem acesso ativo (trial ou subscription)"""
-        return obj.has_active_access
-
-    has_active_access.boolean = True
-    has_active_access.short_description = "Acesso Ativo"

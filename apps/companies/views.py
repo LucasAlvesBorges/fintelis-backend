@@ -462,6 +462,7 @@ class SubscriptionActivationView(ActiveCompanyMixin, APIView):
 
     def post(self, request):
         company = self.get_active_company()
+        request.active_company = company
 
         if not _is_company_admin(request.user, company):
             raise PermissionDenied(

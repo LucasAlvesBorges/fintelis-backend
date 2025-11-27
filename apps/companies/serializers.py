@@ -129,6 +129,14 @@ class MembershipSerializer(serializers.ModelSerializer):
                 }
             )
 
+        company = attrs.get("company")
+        if company and not company.has_active_access:
+            raise serializers.ValidationError(
+                {
+                    "company": "Assinatura inativa ou trial expirado. Ative o plano da empresa para enviar convites."
+                }
+            )
+
         return attrs
 
     def create(self, validated_data):
@@ -264,6 +272,7 @@ class UserSearchSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_is_member(self, obj):
+        company = self.context.get("company")
         if company:
             return Membership.objects.filter(company=company, user=obj).exists()
         return False
