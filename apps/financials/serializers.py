@@ -118,10 +118,9 @@ class CategorySerializer(CompanyScopedModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "company", "created_at", "updated_at")
+        read_only_fields = ("id", "company", "code", "created_at", "updated_at")
         extra_kwargs = {
             "parent": {"required": False, "allow_null": True},
-            "code": {"required": False, "allow_null": True, "allow_blank": True},
         }
 
 

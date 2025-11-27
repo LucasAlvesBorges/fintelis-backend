@@ -147,7 +147,7 @@ class Category(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="categories",
     )
-    code = models.CharField(max_length=50, null=True, blank=True)
+    code = models.CharField(max_length=50, null=True, editable=False)
     parent = models.ForeignKey(
         "self",
         on_delete=models.CASCADE,
