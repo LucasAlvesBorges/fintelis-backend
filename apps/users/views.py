@@ -5,9 +5,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.companies.models import Invitation
+from apps.companies.serializers import InvitationSerializer
+
 from .serializers import (
     CompanyTokenObtainSerializer,
     LoginSerializer,
+    PasswordChangeSerializer,
     RegisterSerializer,
     SubscriptionActivationSerializer,
     UserAuthenticationSerializer,
@@ -85,6 +89,16 @@ class SubscriptionActivationView(APIView):
         })
 
 
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response({'user': UserAuthenticationSerializer(user).data})
+
+
 class CompanyTokenView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -106,6 +120,25 @@ class CompanyTokenView(APIView):
         )
         set_company_cookie(response, token, expires_at)
         return response
+
+
+class MyInvitationsView(APIView):
+    """
+    Lista convites recebidos pelo usuário autenticado.
+    Retorna apenas convites onde o email do convite corresponde ao email do usuário.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_email = request.user.email
+        invitations = Invitation.objects.filter(
+            email=user_email
+        ).select_related(
+            'user', 'company', 'invited_by'
+        ).order_by('-created_at')
+        
+        serializer = InvitationSerializer(invitations, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 def set_auth_cookies(response, refresh_token: str, access_token: str):

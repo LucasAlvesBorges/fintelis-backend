@@ -49,8 +49,16 @@ class Command(BaseCommand):
 
             logo_path = base_svg_dir / f"{bank.code}.svg"
             if logo_path.exists():
+                target_filename = f"{bank.code}.svg"
+                upload_dir = bank.logo.field.upload_to.rstrip('/')
+
+                # Evita gerar nomes aleatórios (_xxxx) em re-seeds: remove o arquivo atual e o path esperado
+                if bank.logo:
+                    bank.logo.storage.delete(bank.logo.name)
+                bank.logo.storage.delete(f"{upload_dir}/{target_filename}")
+
                 with logo_path.open('rb') as logo_file:
-                    bank.logo.save(f'{bank.code}.svg', ContentFile(logo_file.read()), save=True)
+                    bank.logo.save(target_filename, ContentFile(logo_file.read()), save=True)
                 self.stdout.write(self.style.SUCCESS(f'{bank.code} - logo atualizada de {logo_path.name}'))
             else:
                 self.stdout.write(self.style.WARNING(f'{bank.code} - logo não encontrada em {logo_path}, mantendo valor atual.'))

@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, password_validation
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -12,7 +12,7 @@ from .models import User, name_validator
 class UserAuthenticationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ( 'first_name', 'last_name')
+        fields = ('first_name', 'last_name', 'must_change_password')
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -35,6 +35,48 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate_last_name(self, value):
         return ' '.join(value.split())
+
+
+class MembershipUserCreateSerializer(RegisterSerializer):
+    password = serializers.CharField(write_only=True, min_length=4)
+
+    class Meta(RegisterSerializer.Meta):
+        fields = RegisterSerializer.Meta.fields
+
+    def create(self, validated_data):
+        user = super().create(validated_data)
+        user.must_change_password = True
+        
+        # Herda assinatura/trial do usuário que está criando o convite (pai)
+        invited_by = self.context.get('invited_by')
+        if invited_by:
+            # Copia trial se o usuário pai tem trial ativo
+            if invited_by.trial_ends_at and invited_by.has_active_access:
+                from django.utils import timezone
+                from datetime import timedelta
+                # Calcula o tempo restante do trial do pai
+                remaining_days = (invited_by.trial_ends_at - timezone.now()).days
+                if remaining_days > 0:
+                    user.trial_ends_at = timezone.now() + timedelta(days=remaining_days)
+            
+            # Copia subscription se o usuário pai tem subscription ativa
+            if invited_by.subscription_active:
+                user.subscription_active = True
+                user.subscription_plan = invited_by.subscription_plan
+                user.subscription_expires_at = invited_by.subscription_expires_at
+        
+        # Se não herdou nada e não tem trial/subscription, ativa trial padrão
+        if not user.trial_ends_at and not user.subscription_active:
+            user.start_trial()
+        
+        user.save(update_fields=[
+            'must_change_password',
+            'trial_ends_at',
+            'subscription_active',
+            'subscription_plan',
+            'subscription_expires_at'
+        ])
+        return user
 
 
 class LoginSerializer(serializers.Serializer):
@@ -117,3 +159,26 @@ class CompanyTokenObtainSerializer(serializers.Serializer):
         attrs['company'] = company
         attrs['expires_at'] = token['exp']
         return attrs
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        if not user.check_password(attrs['current_password']):
+            raise serializers.ValidationError({'current_password': 'Senha atual incorreta.'})
+
+        if attrs['new_password'] == attrs['current_password']:
+            raise serializers.ValidationError({'new_password': 'Nova senha deve ser diferente da atual.'})
+
+        password_validation.validate_password(attrs['new_password'], user=user)
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.must_change_password = False
+        user.save(update_fields=['password', 'must_change_password'])
+        return user
