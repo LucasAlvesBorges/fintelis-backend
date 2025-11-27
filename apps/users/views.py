@@ -1,5 +1,7 @@
 from django.conf import settings
 from rest_framework import status
+from rest_framework.generics import ListAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -122,23 +124,33 @@ class CompanyTokenView(APIView):
         return response
 
 
-class MyInvitationsView(APIView):
-    """
-    Lista convites recebidos pelo usuário autenticado.
-    Retorna apenas convites onde o email do convite corresponde ao email do usuário.
-    """
-    permission_classes = [IsAuthenticated]
+class InvitationPagination(PageNumberPagination):
+    page_size = 3
+    page_size_query_param = 'page_size'
+    max_page_size = 3
 
-    def get(self, request):
-        user_email = request.user.email
-        invitations = Invitation.objects.filter(
-            email=user_email
-        ).select_related(
-            'user', 'company', 'invited_by'
-        ).order_by('-created_at')
-        
-        serializer = InvitationSerializer(invitations, many=True, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class MyInvitationsView(ListAPIView):
+    """
+    Lista convites relacionados ao usuário autenticado.
+    scope=received (default) → convites recebidos (email do usuário).
+    scope=sent → convites enviados pelo usuário.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = InvitationSerializer
+    pagination_class = InvitationPagination
+
+    def get_queryset(self):
+        scope = self.request.query_params.get('scope', 'received')
+        if scope == 'sent':
+            return Invitation.objects.filter(
+                invited_by=self.request.user
+            ).select_related('user', 'company', 'invited_by').order_by('-created_at')
+
+        return Invitation.objects.filter(
+            email=self.request.user.email
+        ).select_related('user', 'company', 'invited_by').order_by('-created_at')
 
 
 def set_auth_cookies(response, refresh_token: str, access_token: str):

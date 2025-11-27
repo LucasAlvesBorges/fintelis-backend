@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -122,6 +123,17 @@ class MembershipInviteAPIView(ActiveCompanyMixin, APIView):
         if not _is_company_admin(self.request.user, company):
             raise PermissionDenied('You do not have permission to manage memberships for this company.')
 
+class MembershipPagination(PageNumberPagination):
+    page_size = 3
+    page_size_query_param = 'page_size'
+    max_page_size = 3
+
+
+class InvitationPagination(PageNumberPagination):
+    page_size = 3
+    page_size_query_param = 'page_size'
+    max_page_size = 3
+
 
 class MembershipCompanyListAPIView(ActiveCompanyMixin, ListAPIView):
     """
@@ -131,11 +143,16 @@ class MembershipCompanyListAPIView(ActiveCompanyMixin, ListAPIView):
 
     serializer_class = MembershipSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = MembershipPagination
 
     def get_queryset(self):
         company = self.get_active_company()
         self._ensure_company_admin(company)
-        return Membership.objects.filter(company=company).select_related('user', 'company')
+        return (
+            Membership.objects.filter(company=company)
+            .exclude(user=self.request.user)
+            .select_related('user', 'company')
+        )
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
@@ -250,6 +267,7 @@ class InvitationListCreateAPIView(ActiveCompanyMixin, ListCreateAPIView):
     Apenas admins podem criar convites.
     """
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = InvitationPagination
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -257,6 +275,12 @@ class InvitationListCreateAPIView(ActiveCompanyMixin, ListCreateAPIView):
         return InvitationSerializer
 
     def get_queryset(self):
+        scope = self.request.query_params.get('scope', 'sent')
+        if scope == 'received':
+            return Invitation.objects.filter(
+                email=self.request.user.email
+            ).select_related('user', 'company', 'invited_by').order_by('-created_at')
+
         company = self.get_active_company()
         self._ensure_company_admin(company)
         return Invitation.objects.filter(company=company).select_related(
