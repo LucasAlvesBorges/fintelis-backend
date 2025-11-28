@@ -139,6 +139,9 @@ class InventoryMovementSerializer(serializers.ModelSerializer):
     stock_item_inventory_name = serializers.CharField(
         source="stock_item.inventory.name", read_only=True
     )
+    stock_item_inventory_id = serializers.UUIDField(
+        source="stock_item.inventory.id", read_only=True
+    )
     company_name = serializers.CharField(source="company.name", read_only=True)
     type_display = serializers.CharField(source="get_type_display", read_only=True)
 
@@ -149,6 +152,7 @@ class InventoryMovementSerializer(serializers.ModelSerializer):
             "stock_item",
             "stock_item_product_name",
             "stock_item_inventory_name",
+            "stock_item_inventory_id",
             "quantity_changed",
             "type",
             "type_display",
