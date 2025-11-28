@@ -126,16 +126,26 @@ class CategorySerializer(CompanyScopedModelSerializer):
 
 class TransactionSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("bank_account", "category", "cash_register", "contact")
+    company_name = serializers.CharField(source="company.name", read_only=True)
+    bank_account_name = serializers.CharField(source="bank_account.name", read_only=True, allow_null=True)
+    category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
+    contact_name = serializers.CharField(source="contact.name", read_only=True, allow_null=True)
+    cash_register_name = serializers.CharField(source="cash_register.name", read_only=True, allow_null=True)
 
     class Meta:
         model = Transaction
         fields = (
             "id",
             "company",
+            "company_name",
             "bank_account",
+            "bank_account_name",
             "category",
+            "category_name",
             "cash_register",
+            "cash_register_name",
             "contact",
+            "contact_name",
             "related_transaction",
             "linked_transaction",
             "description",
@@ -148,6 +158,11 @@ class TransactionSerializer(CompanyScopedModelSerializer):
         read_only_fields = (
             "id",
             "company",
+            "company_name",
+            "bank_account_name",
+            "category_name",
+            "cash_register_name",
+            "contact_name",
             "linked_transaction",
             "related_transaction",
             "created_at",
@@ -227,14 +242,20 @@ class TransactionRefundSerializer(CompanyScopedSerializer):
 
 class BillSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category", "contact")
+    company_name = serializers.CharField(source="company.name", read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
+    contact_name = serializers.CharField(source="contact.name", read_only=True, allow_null=True)
 
     class Meta:
         model = Bill
         fields = (
             "id",
             "company",
+            "company_name",
             "category",
+            "category_name",
             "contact",
+            "contact_name",
             "payment_transaction",
             "description",
             "amount",
@@ -246,6 +267,9 @@ class BillSerializer(CompanyScopedModelSerializer):
         read_only_fields = (
             "id",
             "company",
+            "company_name",
+            "category_name",
+            "contact_name",
             "payment_transaction",
             "created_at",
             "updated_at",
@@ -257,14 +281,20 @@ class BillSerializer(CompanyScopedModelSerializer):
 
 class IncomeSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category", "contact")
+    company_name = serializers.CharField(source="company.name", read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
+    contact_name = serializers.CharField(source="contact.name", read_only=True, allow_null=True)
 
     class Meta:
         model = Income
         fields = (
             "id",
             "company",
+            "company_name",
             "category",
+            "category_name",
             "contact",
+            "contact_name",
             "payment_transaction",
             "description",
             "amount",
@@ -276,6 +306,9 @@ class IncomeSerializer(CompanyScopedModelSerializer):
         read_only_fields = (
             "id",
             "company",
+            "company_name",
+            "category_name",
+            "contact_name",
             "payment_transaction",
             "created_at",
             "updated_at",
@@ -287,13 +320,17 @@ class IncomeSerializer(CompanyScopedModelSerializer):
 
 class RecurringBillSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category",)
+    company_name = serializers.CharField(source="company.name", read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
 
     class Meta:
         model = RecurringBill
         fields = (
             "id",
             "company",
+            "company_name",
             "category",
+            "category_name",
             "description",
             "amount",
             "frequency",
@@ -304,18 +341,22 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "company", "created_at", "updated_at")
+        read_only_fields = ("id", "company", "company_name", "category_name", "created_at", "updated_at")
 
 
 class RecurringIncomeSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category",)
+    company_name = serializers.CharField(source="company.name", read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
 
     class Meta:
         model = RecurringIncome
         fields = (
             "id",
             "company",
+            "company_name",
             "category",
+            "category_name",
             "description",
             "amount",
             "frequency",
@@ -326,7 +367,7 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "company", "created_at", "updated_at")
+        read_only_fields = ("id", "company", "company_name", "category_name", "created_at", "updated_at")
 
 
 class BillPaymentSerializer(CompanyScopedSerializer):
