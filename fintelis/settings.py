@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.contacts',
     'apps.financials',
     'apps.inventory',
+    'apps.dashboards',
     'rest_framework',
     'django_celery_beat',
 ]

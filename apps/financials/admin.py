@@ -63,6 +63,7 @@ class TransactionAdmin(admin.ModelAdmin):
         "description",
         "company",
         "type",
+        "category",
         "amount",
         "transaction_date",
         "bank_account",

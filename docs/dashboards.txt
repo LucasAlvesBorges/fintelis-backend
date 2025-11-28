@@ -1,0 +1,168 @@
+# Estrutura de Dados Retornados pelos Endpoints GET de Dashboards
+
+Este documento mostra a estrutura JSON retornada pelos endpoints GET do módulo dashboards.
+
+## Endpoint: GET /api/v1/dashboards/expenses/by-category/
+
+Retorna um breakdown de despesas agrupadas por categoria pai para gráfico de pizza.
+
+**Query Parameters:**
+- `month` (opcional): Mês (1-12). Se não fornecido, usa o mês atual.
+- `year` (opcional): Ano (ex: 2025). Se não fornecido, usa o ano atual.
+
+**Exemplo de requisição:**
+```
+GET /api/v1/dashboards/expenses/by-category/?month=11&year=2025
+```
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 11,
+    "total_expenses": 15000.0,
+    "categories": [
+        {
+            "category_id": "88f5fcf2-144e-4ba3-b918-cc4df562f383",
+            "category_name": "Despesas de Atendimento",
+            "amount": 8000.0,
+            "percentage": 53.33
+        },
+        {
+            "category_id": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+            "category_name": "Despesas Operacionais",
+            "amount": 7000.0,
+            "percentage": 46.67
+        }
+    ]
+}
+```
+
+**Campos:**
+- `currency`: Moeda utilizada (sempre "BRL")
+- `year`: Ano dos dados retornados (integer)
+- `month`: Mês dos dados retornados (integer, 1-12)
+- `total_expenses`: Total de despesas no período (decimal)
+- `categories`: Array de objetos com breakdown por categoria
+  - `category_id`: UUID da categoria pai (string, pode ser null se "Sem categoria")
+  - `category_name`: Nome da categoria pai (string)
+  - `amount`: Valor total da categoria (decimal)
+  - `percentage`: Percentual do total de despesas (float, arredondado para 2 casas decimais)
+
+
+**Exemplo sem despesas no período:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 10,
+    "total_expenses": 0.0,
+    "categories": []
+}
+```
+
+**Observações:**
+- As categorias são agrupadas por categoria pai. Se uma transação não tem categoria, aparece como "Sem categoria".
+- Se uma categoria tem subcategorias, o agrupamento é feito pela categoria pai.
+- As categorias são ordenadas por valor total (maior para menor).
+- O percentual é calculado em relação ao `total_expenses`.
+
+---
+
+## Endpoint: GET /api/v1/dashboards/revenues/by-day/
+
+Retorna receitas agrupadas por dia dentro do mês para gráfico de barras.
+
+**Query Parameters:**
+- `month` (opcional): Mês (1-12). Se não fornecido, usa o mês atual.
+- `year` (opcional): Ano (ex: 2025). Se não fornecido, usa o ano atual.
+
+**Exemplo de requisição:**
+```
+GET /api/v1/dashboards/revenues/by-day/?month=11&year=2025
+```
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 11,
+    "total_revenue": 28000.0,
+    "days": [
+        {
+            "date": "2025-11-22",
+            "day": 23,
+            "label": "23 novembro",
+            "amount": 10000.0
+        },
+        {
+            "date": "2025-11-24",
+            "day": 25,
+            "label": "25 novembro",
+            "amount": 18000.0
+        }
+    ]
+}
+```
+
+**Campos:**
+- `currency`: Moeda utilizada (sempre "BRL")
+- `year`: Ano dos dados retornados (integer)
+- `month`: Mês dos dados retornados (integer, 1-12)
+- `total_revenue`: Total de receitas no período (decimal)
+- `days`: Array de objetos com receitas por dia
+  - `date`: Data no formato ISO (YYYY-MM-DD)
+  - `day`: Dia do mês (integer, 1-31)
+  - `label`: Label formatado para exibição (string, ex: "23 novembro")
+  - `amount`: Valor total de receitas no dia (decimal)
+
+**Exemplo sem receitas no período:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 10,
+    "total_revenue": 0.0,
+    "days": []
+}
+```
+
+**Observações:**
+- Apenas dias com receitas são incluídos no array `days`.
+- Os dias são ordenados por número do dia (crescente).
+- O label é formatado em português com o nome do mês (ex: "23 novembro", "05 dezembro").
+- O `total_revenue` é a soma de todas as receitas do mês, não apenas dos dias listados.
+
+---
+
+## Autenticação
+
+Todos os endpoints requerem:
+- Header `Authorization: Bearer <access_token>`
+- Header `X-Company-Token: <company_token>` ou cookie `company_access_token`
+
+## Validação de Parâmetros
+
+- `month` deve ser um inteiro entre 1 e 12.
+- `year` deve ser um inteiro válido.
+- Se `month` ou `year` não forem fornecidos, são usados os valores do mês/ano atual.
+- Se valores inválidos forem fornecidos, a API retorna erro 400 com mensagem de validação.
+
+## Exemplos de Erro
+
+**Parâmetro inválido:**
+```json
+{
+    "month": ["month deve estar entre 1 e 12."]
+}
+```
+
+**Parâmetro não numérico:**
+```json
+{
+    "non_field_errors": ["month e year devem ser inteiros."]
+}
+```
+
