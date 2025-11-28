@@ -5,11 +5,12 @@ from django.contrib.auth import authenticate
 from django.db import transaction
 
 from apps.users.models import User
-from apps.companies.models import Company, Membership
+from apps.companies.models import Company, Membership, CostCenter
 from apps.financials.models import (
     Bank,
     BankAccount,
     Category,
+    PaymentMethod,
     Transaction,
     Bill,
     Income,
@@ -72,6 +73,10 @@ class Command(BaseCommand):
         """Cria dados mockados para a empresa"""
         today = date.today()
 
+        # 0. Criar ou obter Payment Methods (globais)
+        pm_pix, _ = PaymentMethod.objects.get_or_create(name="Pix")
+        pm_boleto, _ = PaymentMethod.objects.get_or_create(name="Boleto")
+
         # 1. Criar ou obter BankAccount
         bank = Bank.objects.filter(is_active=True).first()
         if not bank:
@@ -112,6 +117,19 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"  ✓ Categorias criadas/verificadas")
 
+        # 2.1 Criar Cost Centers
+        cc_admin, _ = CostCenter.objects.get_or_create(
+            company=company,
+            name="Administracao",
+            parent=None,
+        )
+        cc_comercial, _ = CostCenter.objects.get_or_create(
+            company=company,
+            name="Departamento Comercial",
+            parent=None,
+        )
+        self.stdout.write(f"  ✓ Centros de custos criados/verificados")
+
         # 3. Criar Contacts
         cliente, _ = Contact.objects.get_or_create(
             company=company,
@@ -144,6 +162,8 @@ class Command(BaseCommand):
                 "transaction_date": today - timedelta(days=5),
                 "category": cat_receita,
                 "contact": cliente,
+                "payment_method": pm_pix,
+                "cost_center": cc_comercial,
             },
             {
                 "description": "Venda de produto B",
@@ -152,6 +172,8 @@ class Command(BaseCommand):
                 "transaction_date": today - timedelta(days=3),
                 "category": cat_receita,
                 "contact": cliente,
+                "payment_method": pm_boleto,
+                "cost_center": cc_comercial,
             },
             {
                 "description": "Pagamento de fornecedor",
@@ -160,6 +182,8 @@ class Command(BaseCommand):
                 "transaction_date": today - timedelta(days=2),
                 "category": cat_despesa,
                 "contact": fornecedor,
+                "payment_method": pm_pix,
+                "cost_center": cc_admin,
             },
             {
                 "description": "Despesa administrativa",
@@ -167,6 +191,8 @@ class Command(BaseCommand):
                 "type": Transaction.Types.DESPESA,
                 "transaction_date": today - timedelta(days=1),
                 "category": cat_despesa,
+                "payment_method": pm_boleto,
+                "cost_center": cc_admin,
             },
         ]
 
@@ -179,7 +205,12 @@ class Command(BaseCommand):
             )
             created_transactions.append(tx)
 
-        self.stdout.write(f"  ✓ {len(created_transactions)} transações criadas")
+        orders = ", ".join(
+            [t.order_code or "-" for t in created_transactions[:5]]
+        )
+        self.stdout.write(
+            f"  ✓ {len(created_transactions)} transações criadas (ordens: {orders}...)"
+        )
 
         # 5. Criar Bills (contas a pagar)
         bills_data = [
@@ -190,6 +221,7 @@ class Command(BaseCommand):
                 "status": Bill.Status.A_VENCER,
                 "category": cat_despesa,
                 "contact": fornecedor,
+                "cost_center": cc_admin,
             },
             {
                 "description": "Aluguel",
@@ -197,6 +229,7 @@ class Command(BaseCommand):
                 "due_date": today + timedelta(days=15),
                 "status": Bill.Status.A_VENCER,
                 "category": cat_despesa,
+                "cost_center": cc_admin,
             },
             {
                 "description": "Fornecedor - Material",
@@ -205,6 +238,7 @@ class Command(BaseCommand):
                 "status": Bill.Status.QUITADA,
                 "category": cat_despesa,
                 "contact": fornecedor,
+                "cost_center": cc_admin,
             },
         ]
 
@@ -223,11 +257,16 @@ class Command(BaseCommand):
                     type=Transaction.Types.DESPESA,
                     transaction_date=bill.due_date,
                     contact=bill.contact,
+                    payment_method=pm_boleto,
+                    cost_center=bill.cost_center,
                 )
                 bill.payment_transaction = payment_tx
                 bill.save(update_fields=["payment_transaction"])
 
-        self.stdout.write(f"  ✓ {len(created_bills)} contas a pagar criadas")
+        orders = ", ".join([b.order_code or "-" for b in created_bills[:5]])
+        self.stdout.write(
+            f"  ✓ {len(created_bills)} contas a pagar criadas (ordens: {orders}...)"
+        )
 
         # 6. Criar Incomes (contas a receber)
         incomes_data = [
@@ -238,6 +277,7 @@ class Command(BaseCommand):
                 "status": Income.Status.PENDENTE,
                 "category": cat_receita,
                 "contact": cliente,
+                "cost_center": cc_comercial,
             },
             {
                 "description": "Faturamento cliente B",
@@ -246,6 +286,7 @@ class Command(BaseCommand):
                 "status": Income.Status.PENDENTE,
                 "category": cat_receita,
                 "contact": cliente,
+                "cost_center": cc_comercial,
             },
             {
                 "description": "Recebimento antecipado",
@@ -254,6 +295,7 @@ class Command(BaseCommand):
                 "status": Income.Status.RECEBIDO,
                 "category": cat_receita,
                 "contact": cliente,
+                "cost_center": cc_comercial,
             },
         ]
 
@@ -272,11 +314,16 @@ class Command(BaseCommand):
                     type=Transaction.Types.RECEITA,
                     transaction_date=income.due_date,
                     contact=income.contact,
+                    payment_method=pm_pix,
+                    cost_center=income.cost_center,
                 )
                 income.payment_transaction = payment_tx
                 income.save(update_fields=["payment_transaction"])
 
-        self.stdout.write(f"  ✓ {len(created_incomes)} contas a receber criadas")
+        orders = ", ".join([i.order_code or "-" for i in created_incomes[:5]])
+        self.stdout.write(
+            f"  ✓ {len(created_incomes)} contas a receber criadas (ordens: {orders}...)"
+        )
 
         # 7. Criar RecurringBills
         recurring_bills_data = [
@@ -288,6 +335,7 @@ class Command(BaseCommand):
                 "next_due_date": today + timedelta(days=5),
                 "is_active": True,
                 "category": cat_despesa,
+                "cost_center": cc_admin,
             },
             {
                 "description": "Internet mensal",
@@ -297,6 +345,7 @@ class Command(BaseCommand):
                 "next_due_date": today + timedelta(days=8),
                 "is_active": True,
                 "category": cat_despesa,
+                "cost_center": cc_admin,
             },
         ]
 
@@ -305,7 +354,10 @@ class Command(BaseCommand):
             rb = RecurringBill.objects.create(company=company, **rb_data)
             created_recurring_bills.append(rb)
 
-        self.stdout.write(f"  ✓ {len(created_recurring_bills)} despesas recorrentes criadas")
+        orders = ", ".join([rb.order_code or "-" for rb in created_recurring_bills])
+        self.stdout.write(
+            f"  ✓ {len(created_recurring_bills)} despesas recorrentes criadas (ordens: {orders})"
+        )
 
         # 8. Criar RecurringIncomes
         recurring_incomes_data = [
@@ -317,6 +369,7 @@ class Command(BaseCommand):
                 "next_due_date": today + timedelta(days=10),
                 "is_active": True,
                 "category": cat_receita,
+                "cost_center": cc_comercial,
             },
         ]
 
@@ -325,9 +378,11 @@ class Command(BaseCommand):
             ri = RecurringIncome.objects.create(company=company, **ri_data)
             created_recurring_incomes.append(ri)
 
-        self.stdout.write(f"  ✓ {len(created_recurring_incomes)} receitas recorrentes criadas")
+        orders = ", ".join([ri.order_code or "-" for ri in created_recurring_incomes])
+        self.stdout.write(
+            f"  ✓ {len(created_recurring_incomes)} receitas recorrentes criadas (ordens: {orders})"
+        )
 
         # Atualizar saldo da conta
         bank_account.refresh_from_db()
         self.stdout.write(f"\n  💰 Saldo atual da conta: R$ {bank_account.current_balance:,.2f}")
-

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Company, Membership, Invitation
+from .models import Company, CostCenter, Membership, Invitation
 
 
 @admin.register(Company)
@@ -112,3 +112,13 @@ class InvitationAdmin(admin.ModelAdmin):
             # Se já foi respondido, não pode editar responded_at
             readonly.append("responded_at")
         return readonly
+
+
+@admin.register(CostCenter)
+class CostCenterAdmin(admin.ModelAdmin):
+    list_display = ("id", "code", "name", "company", "parent", "created_at")
+    list_filter = ("company",)
+    search_fields = ("code", "name", "company__name")
+    raw_id_fields = ("company", "parent")
+    readonly_fields = ("created_at", "updated_at")
+    ordering = ("company__name", "code")

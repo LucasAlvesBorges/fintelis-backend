@@ -66,6 +66,84 @@ class Company(TimeStampedModel):
         self.save(update_fields=["trial_ends_at"])
 
 
+class CostCenter(TimeStampedModel):
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name="cost_centers",
+    )
+    name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, editable=False)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
+
+    class Meta:
+        db_table = "cost_center"
+        ordering = ["company__name", "code"]
+        unique_together = ("company", "code")
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    def save(self, *args, **kwargs):
+        if not self.company_id:
+            raise ValueError("Company is required for cost center creation.")
+        if self.parent_id and self.parent.company_id != self.company_id:
+            raise ValueError(
+                "Parent cost center must belong to the same company."
+            )
+        if not self.code:
+            self.code = self._generate_next_code()
+        super().save(*args, **kwargs)
+
+    def _generate_next_code(self) -> str:
+        base_qs = CostCenter.objects.filter(company=self.company)
+
+        if self.parent:
+            sibling_codes = base_qs.filter(parent=self.parent).values_list(
+                "code", flat=True
+            )
+            sibling_numbers = [
+                n
+                for n in (
+                    self._extract_last_segment(code) for code in sibling_codes
+                )
+                if n is not None
+            ]
+            next_number = (max(sibling_numbers) if sibling_numbers else 0) + 1
+            return f"{self.parent.code}.{next_number}"
+
+        root_codes = base_qs.filter(parent__isnull=True).values_list(
+            "code", flat=True
+        )
+        root_numbers = [
+            n
+            for n in (self._extract_first_segment(code) for code in root_codes)
+            if n is not None
+        ]
+        next_number = (max(root_numbers) if root_numbers else 0) + 1
+        return str(next_number)
+
+    @staticmethod
+    def _extract_first_segment(code: str):
+        try:
+            return int(str(code).split(".")[0])
+        except (ValueError, AttributeError, IndexError):
+            return None
+
+    @staticmethod
+    def _extract_last_segment(code: str):
+        try:
+            return int(str(code).split(".")[-1])
+        except (ValueError, AttributeError, IndexError):
+            return None
+
+
 class Membership(TimeStampedModel):
     class Roles(models.TextChoices):
         ADMIN = "admin", "Admin"

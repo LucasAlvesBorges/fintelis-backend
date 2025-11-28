@@ -86,9 +86,11 @@ class TransactionViewSet(CompanyScopedViewSet):
         "bank_account",
         "bank_account__bank",
         "category",
+        "cost_center",
         "cash_register",
         "linked_transaction",
         "contact",
+        "payment_method",
     )
     serializer_class = TransactionSerializer
 
@@ -162,7 +164,11 @@ class TransactionViewSet(CompanyScopedViewSet):
 
 class BillViewSet(CompanyScopedViewSet):
     queryset = Bill.objects.all().select_related(
-        "company", "category", "payment_transaction", "contact"
+        "company",
+        "category",
+        "payment_transaction",
+        "contact",
+        "cost_center",
     )
     serializer_class = BillSerializer
 
@@ -199,7 +205,11 @@ class BillViewSet(CompanyScopedViewSet):
 
 class IncomeViewSet(CompanyScopedViewSet):
     queryset = Income.objects.all().select_related(
-        "company", "category", "payment_transaction", "contact"
+        "company",
+        "category",
+        "payment_transaction",
+        "contact",
+        "cost_center",
     )
     serializer_class = IncomeSerializer
 
@@ -235,10 +245,14 @@ class IncomeViewSet(CompanyScopedViewSet):
 
 
 class RecurringBillViewSet(CompanyScopedViewSet):
-    queryset = RecurringBill.objects.all().select_related("company", "category")
+    queryset = RecurringBill.objects.all().select_related(
+        "company", "category", "cost_center"
+    )
     serializer_class = RecurringBillSerializer
 
 
 class RecurringIncomeViewSet(CompanyScopedViewSet):
-    queryset = RecurringIncome.objects.all().select_related("company", "category")
+    queryset = RecurringIncome.objects.all().select_related(
+        "company", "category", "cost_center"
+    )
     serializer_class = RecurringIncomeSerializer

@@ -4,9 +4,9 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models, transaction as db_transaction
-from django.db.models import F
+from django.db.models import F, Q
 
-from apps.companies.models import Company
+from apps.companies.models import Company, CostCenter
 from apps.contacts.models import Contact
 
 
@@ -135,6 +135,17 @@ class CashRegister(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name} ({self.company})"
+
+
+class PaymentMethod(TimeStampedModel):
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        db_table = "payment_method"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
 
 
 class Category(TimeStampedModel):
@@ -266,6 +277,20 @@ class Transaction(TimeStampedModel):
         null=True,
         blank=True,
     )
+    cost_center = models.ForeignKey(
+        CostCenter,
+        on_delete=models.SET_NULL,
+        related_name="transactions",
+        null=True,
+        blank=True,
+    )
+    payment_method = models.ForeignKey(
+        "PaymentMethod",
+        on_delete=models.SET_NULL,
+        related_name="transactions",
+        null=True,
+        blank=True,
+    )
     cash_register = models.ForeignKey(
         CashRegister,
         on_delete=models.SET_NULL,
@@ -298,10 +323,18 @@ class Transaction(TimeStampedModel):
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     type = models.CharField(max_length=25, choices=Types.choices)
     transaction_date = models.DateField()
+    order = models.PositiveIntegerField(null=True, editable=False)
 
     class Meta:
         db_table = "transaction"
         ordering = ["-transaction_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "order"],
+                name="uniq_transaction_company_order",
+                condition=Q(order__isnull=False),
+            )
+        ]
 
     def clean(self):
         super().clean()
@@ -312,6 +345,8 @@ class Transaction(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         with db_transaction.atomic():
+            if self._state.adding and self.order is None:
+                self.order = self._get_next_order()
             previous = None
             if self.pk:
                 previous = (
@@ -346,6 +381,8 @@ class Transaction(TimeStampedModel):
             errors["cash_register"] = "Cash register must belong to the same company."
         if self.category and self.category.company_id != self.company_id:
             errors["category"] = "Category must belong to the same company."
+        if self.cost_center and self.cost_center.company_id != self.company_id:
+            errors["cost_center"] = "Cost center must belong to the same company."
         if self.contact and self.contact.company_id != self.company_id:
             errors["contact"] = "Contact must belong to the same company."
         if self.related_transaction:
@@ -434,10 +471,19 @@ class Transaction(TimeStampedModel):
                 previous.bank_account_id,
                 -self._compute_balance_delta(previous.type, previous.amount),
             )
-        self._update_bank_account_balance(
-            self.bank_account_id,
-            self._compute_balance_delta(self.type, self.amount),
+            self._update_bank_account_balance(
+                self.bank_account_id,
+                self._compute_balance_delta(self.type, self.amount),
+            )
+
+    def _get_next_order(self) -> int:
+        qs = (
+            Transaction.objects.select_for_update()
+            .filter(company=self.company)
+            .exclude(order__isnull=True)
         )
+        max_order = qs.aggregate(max_order=models.Max("order"))["max_order"] or 0
+        return max_order + 1
 
     def _update_bank_account_balance(self, bank_account_id, delta: Decimal):
         if not bank_account_id or delta == 0:
@@ -467,6 +513,12 @@ class Transaction(TimeStampedModel):
         total = self.refunds.aggregate(total=models.Sum("amount"))["total"]
         return total or Decimal("0")
 
+    @property
+    def order_code(self) -> str | None:
+        if self.order is None:
+            return None
+        return f"#{str(self.order).zfill(2)}"
+
 
 class Bill(TimeStampedModel):
     class Status(models.TextChoices):
@@ -480,6 +532,13 @@ class Bill(TimeStampedModel):
     )
     category = models.ForeignKey(
         Category,
+        on_delete=models.SET_NULL,
+        related_name="bills",
+        null=True,
+        blank=True,
+    )
+    cost_center = models.ForeignKey(
+        CostCenter,
         on_delete=models.SET_NULL,
         related_name="bills",
         null=True,
@@ -499,6 +558,7 @@ class Bill(TimeStampedModel):
         null=True,
         blank=True,
     )
+    order = models.PositiveIntegerField(null=True, editable=False)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     due_date = models.DateField()
@@ -509,6 +569,13 @@ class Bill(TimeStampedModel):
     class Meta:
         db_table = "bill"
         ordering = ["-due_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "order"],
+                name="uniq_bill_company_order",
+                condition=Q(order__isnull=False),
+            )
+        ]
 
     def clean(self):
         super().clean()
@@ -518,6 +585,8 @@ class Bill(TimeStampedModel):
                 errors["category"] = "Category must belong to the same company."
             elif self.category.type != Category.Types.DESPESA:
                 errors["category"] = "Bills must reference an expense category."
+        if self.cost_center and self.cost_center.company_id != self.company_id:
+            errors["cost_center"] = "Cost center must belong to the same company."
         if self.contact:
             if self.contact.company_id != self.company_id:
                 errors["contact"] = "Contact must belong to the same company."
@@ -540,6 +609,27 @@ class Bill(TimeStampedModel):
     def __str__(self):
         return f"{self.description} ({self.get_status_display()})"
 
+    def save(self, *args, **kwargs):
+        with db_transaction.atomic():
+            if self._state.adding and self.order is None:
+                self.order = self._get_next_order()
+            super().save(*args, **kwargs)
+
+    def _get_next_order(self) -> int:
+        qs = (
+            Bill.objects.select_for_update()
+            .filter(company=self.company)
+            .exclude(order__isnull=True)
+        )
+        max_order = qs.aggregate(max_order=models.Max("order"))["max_order"] or 0
+        return max_order + 1
+
+    @property
+    def order_code(self) -> str | None:
+        if self.order is None:
+            return None
+        return f"#{str(self.order).zfill(2)}"
+
 
 class Income(TimeStampedModel):
     class Status(models.TextChoices):
@@ -553,6 +643,13 @@ class Income(TimeStampedModel):
     )
     category = models.ForeignKey(
         Category,
+        on_delete=models.SET_NULL,
+        related_name="incomes",
+        null=True,
+        blank=True,
+    )
+    cost_center = models.ForeignKey(
+        CostCenter,
         on_delete=models.SET_NULL,
         related_name="incomes",
         null=True,
@@ -572,6 +669,7 @@ class Income(TimeStampedModel):
         null=True,
         blank=True,
     )
+    order = models.PositiveIntegerField(null=True, editable=False)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     due_date = models.DateField()
@@ -582,6 +680,13 @@ class Income(TimeStampedModel):
     class Meta:
         db_table = "income"
         ordering = ["-due_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "order"],
+                name="uniq_income_company_order",
+                condition=Q(order__isnull=False),
+            )
+        ]
 
     def clean(self):
         super().clean()
@@ -591,6 +696,8 @@ class Income(TimeStampedModel):
                 errors["category"] = "Category must belong to the same company."
             elif self.category.type != Category.Types.RECEITA:
                 errors["category"] = "Income must reference a revenue category."
+        if self.cost_center and self.cost_center.company_id != self.company_id:
+            errors["cost_center"] = "Cost center must belong to the same company."
         if self.contact:
             if self.contact.company_id != self.company_id:
                 errors["contact"] = "Contact must belong to the mesma empresa."
@@ -613,6 +720,27 @@ class Income(TimeStampedModel):
     def __str__(self):
         return f"{self.description} ({self.get_status_display()})"
 
+    def save(self, *args, **kwargs):
+        with db_transaction.atomic():
+            if self._state.adding and self.order is None:
+                self.order = self._get_next_order()
+            super().save(*args, **kwargs)
+
+    def _get_next_order(self) -> int:
+        qs = (
+            Income.objects.select_for_update()
+            .filter(company=self.company)
+            .exclude(order__isnull=True)
+        )
+        max_order = qs.aggregate(max_order=models.Max("order"))["max_order"] or 0
+        return max_order + 1
+
+    @property
+    def order_code(self) -> str | None:
+        if self.order is None:
+            return None
+        return f"#{str(self.order).zfill(2)}"
+
 
 class RecurringBill(TimeStampedModel):
     company = models.ForeignKey(
@@ -627,6 +755,14 @@ class RecurringBill(TimeStampedModel):
         null=True,
         blank=True,
     )
+    cost_center = models.ForeignKey(
+        CostCenter,
+        on_delete=models.SET_NULL,
+        related_name="recurring_bills",
+        null=True,
+        blank=True,
+    )
+    order = models.PositiveIntegerField(null=True, editable=False)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     frequency = models.CharField(max_length=20, choices=FrequencyChoices.choices)
@@ -638,6 +774,13 @@ class RecurringBill(TimeStampedModel):
     class Meta:
         db_table = "recurring_bill"
         ordering = ["company__name", "next_due_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "order"],
+                name="uniq_recurring_bill_company_order",
+                condition=Q(order__isnull=False),
+            )
+        ]
 
     def clean(self):
         super().clean()
@@ -649,6 +792,8 @@ class RecurringBill(TimeStampedModel):
                 errors["category"] = (
                     "Recurring bills must reference an expense category."
                 )
+        if self.cost_center and self.cost_center.company_id != self.company_id:
+            errors["cost_center"] = "Cost center must belong to the same company."
         if self.end_date and self.end_date < self.start_date:
             errors["end_date"] = "End date cannot be earlier than the start date."
         if self.next_due_date < self.start_date:
@@ -660,6 +805,27 @@ class RecurringBill(TimeStampedModel):
 
     def __str__(self):
         return f"{self.description} ({self.frequency})"
+
+    def save(self, *args, **kwargs):
+        with db_transaction.atomic():
+            if self._state.adding and self.order is None:
+                self.order = self._get_next_order()
+            super().save(*args, **kwargs)
+
+    def _get_next_order(self) -> int:
+        qs = (
+            RecurringBill.objects.select_for_update()
+            .filter(company=self.company)
+            .exclude(order__isnull=True)
+        )
+        max_order = qs.aggregate(max_order=models.Max("order"))["max_order"] or 0
+        return max_order + 1
+
+    @property
+    def order_code(self) -> str | None:
+        if self.order is None:
+            return None
+        return f"#{str(self.order).zfill(2)}"
 
 
 class RecurringIncome(TimeStampedModel):
@@ -675,6 +841,14 @@ class RecurringIncome(TimeStampedModel):
         null=True,
         blank=True,
     )
+    cost_center = models.ForeignKey(
+        CostCenter,
+        on_delete=models.SET_NULL,
+        related_name="recurring_incomes",
+        null=True,
+        blank=True,
+    )
+    order = models.PositiveIntegerField(null=True, editable=False)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     frequency = models.CharField(max_length=20, choices=FrequencyChoices.choices)
@@ -686,6 +860,13 @@ class RecurringIncome(TimeStampedModel):
     class Meta:
         db_table = "recurring_income"
         ordering = ["company__name", "next_due_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "order"],
+                name="uniq_recurring_income_company_order",
+                condition=Q(order__isnull=False),
+            )
+        ]
 
     def clean(self):
         super().clean()
@@ -697,6 +878,8 @@ class RecurringIncome(TimeStampedModel):
                 errors["category"] = (
                     "Recurring incomes must reference a revenue category."
                 )
+        if self.cost_center and self.cost_center.company_id != self.company_id:
+            errors["cost_center"] = "Cost center must belong to the same company."
         if self.end_date and self.end_date < self.start_date:
             errors["end_date"] = "End date cannot be earlier than the start date."
         if self.next_due_date < self.start_date:
@@ -708,3 +891,24 @@ class RecurringIncome(TimeStampedModel):
 
     def __str__(self):
         return f"{self.description} ({self.frequency})"
+
+    def save(self, *args, **kwargs):
+        with db_transaction.atomic():
+            if self._state.adding and self.order is None:
+                self.order = self._get_next_order()
+            super().save(*args, **kwargs)
+
+    def _get_next_order(self) -> int:
+        qs = (
+            RecurringIncome.objects.select_for_update()
+            .filter(company=self.company)
+            .exclude(order__isnull=True)
+        )
+        max_order = qs.aggregate(max_order=models.Max("order"))["max_order"] or 0
+        return max_order + 1
+
+    @property
+    def order_code(self) -> str | None:
+        if self.order is None:
+            return None
+        return f"#{str(self.order).zfill(2)}"
