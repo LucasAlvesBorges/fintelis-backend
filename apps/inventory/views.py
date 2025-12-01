@@ -1,4 +1,6 @@
-from rest_framework import permissions, viewsets
+from rest_framework import permissions, viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.companies.models import Membership
@@ -119,3 +121,92 @@ class InventoryMovementViewSet(CompanyScopedViewSet):
         stock_item.save()
 
         instance.delete()
+
+    @action(detail=False, methods=["post"], url_path="transfer")
+    def transfer(self, request):
+        """
+        Endpoint para criar transferências entre inventários.
+        Espera: stock_item (ID), destination_inventory (ID), quantity (int)
+        """
+        company = self.get_active_company()
+
+        stock_item_id = request.data.get("stock_item")
+        destination_inventory_id = request.data.get("destination_inventory")
+        quantity = request.data.get("quantity")
+
+        # Validações
+        if not all([stock_item_id, destination_inventory_id, quantity]):
+            return Response(
+                {
+                    "error": "Campos obrigatórios: stock_item, destination_inventory, quantity"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                return Response(
+                    {"error": "A quantidade deve ser maior que zero"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Quantidade inválida"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Busca o stock_item
+        try:
+            stock_item = StockItem.objects.get(id=stock_item_id, company=company)
+        except StockItem.DoesNotExist:
+            return Response(
+                {"error": "Item de estoque não encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Busca o inventário de destino
+        try:
+            destination_inventory = Inventory.objects.get(
+                id=destination_inventory_id, company=company
+            )
+        except Inventory.DoesNotExist:
+            return Response(
+                {"error": "Inventário de destino não encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Verifica se não está transferindo para o mesmo inventário
+        if stock_item.inventory.id == destination_inventory.id:
+            return Response(
+                {"error": "Não é possível transferir para o mesmo inventário"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Cria a transferência usando o método do modelo
+        try:
+            movement_out, movement_in = InventoryMovement.create_transfer(
+                product=stock_item.product,
+                from_inventory=stock_item.inventory,
+                to_inventory=destination_inventory,
+                quantity=quantity,
+                company=company,
+            )
+
+            # Serializa os movimentos para retornar
+            serializer = self.get_serializer([movement_out, movement_in], many=True)
+
+            return Response(
+                {
+                    "message": "Transferência realizada com sucesso",
+                    "movements": serializer.data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao processar transferência: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
