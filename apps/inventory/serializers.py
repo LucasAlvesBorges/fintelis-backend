@@ -66,11 +66,9 @@ class InventorySerializer(serializers.ModelSerializer):
 
 class StockItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
+    product_id = serializers.UUIDField(source="product.id", read_only=True)
     product_category_name = serializers.CharField(
         source="product.product_category.name", read_only=True
-    )
-    min_stock_level = serializers.IntegerField(
-        source="product.min_stock_level", read_only=True
     )
     default_cost = serializers.DecimalField(
         source="product.default_cost", max_digits=15, decimal_places=2, read_only=True
@@ -85,6 +83,7 @@ class StockItemSerializer(serializers.ModelSerializer):
             "company",
             "company_name",
             "product",
+            "product_id",
             "product_name",
             "product_category_name",
             "min_stock_level",
@@ -99,9 +98,9 @@ class StockItemSerializer(serializers.ModelSerializer):
             "id",
             "created_at",
             "updated_at",
+            "product_id",
             "product_name",
             "product_category_name",
-            "min_stock_level",
             "default_cost",
             "inventory_name",
             "company_name",
