@@ -1,6 +1,11 @@
 from django.urls import path
 
-from .views import ExpenseBreakdownView, FinancialHealthSummaryView, RevenueByDayView
+from .views import (
+    ExpenseBreakdownView,
+    FinancialHealthSummaryView,
+    FinancialProjectionView,
+    RevenueByDayView,
+)
 
 urlpatterns = [
     path(
@@ -17,5 +22,10 @@ urlpatterns = [
         "financial/summary/",
         FinancialHealthSummaryView.as_view(),
         name="dashboard-financial-summary",
+    ),
+    path(
+        "financial/projection/",
+        FinancialProjectionView.as_view(),
+        name="dashboard-financial-projection",
     ),
 ]

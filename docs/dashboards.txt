@@ -131,3 +131,103 @@
 - `receivables_overdue` e `payables_overdue` consideram apenas itens com `due_date` anterior à data atual
 - `receivables_open_current_month` filtra por mês/ano atual
 
+---
+
+## 4. GET /api/v1/dashboards/financial/projection/
+
+**Descrição:** Projeção financeira com duas linhas paralelas (realizado vs previsto) para comparação visual em gráfico.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `window` (opcional): Período em dias para análise. Valores aceitos: `15`, `30` ou `90`. Padrão: `30`
+- `method` (opcional): Método de projeção. Valores aceitos:
+  - `moving_average` (padrão): Média móvel simples — mais estável, usa média do período histórico
+  - `weighted_average`: Média ponderada exponencial — mais peso para dados recentes
+  - `linear`: Regressão linear — pode ser instável com dados voláteis
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "window_days": 30,
+    "method": "moving_average",
+    "start_date": "2025-11-02",
+    "end_date": "2025-12-31",
+    "today": "2025-12-01",
+    "total_days": 60,
+    "days": [
+        {
+            "date": "2025-11-29",
+            "realized_daily": 0.0,
+            "realized_cumulative": 13000.0,
+            "predicted_daily": 483.95,
+            "predicted_cumulative": 12019.97
+        },
+        {
+            "date": "2025-11-30",
+            "realized_daily": 0.0,
+            "realized_cumulative": 13000.0,
+            "predicted_daily": 487.99,
+            "predicted_cumulative": 12507.96
+        },
+        {
+            "date": "2025-12-01",
+            "realized_daily": 0.0,
+            "realized_cumulative": 13000.0,
+            "predicted_daily": 492.04,
+            "predicted_cumulative": 13000.0
+        },
+        {
+            "date": "2025-12-02",
+            "realized_daily": null,
+            "realized_cumulative": null,
+            "predicted_daily": 496.09,
+            "predicted_cumulative": 13496.09
+        },
+        {
+            "date": "2025-12-03",
+            "realized_daily": null,
+            "realized_cumulative": null,
+            "predicted_daily": 500.14,
+            "predicted_cumulative": 13996.23
+        }
+    ]
+}
+```
+
+**Campos:**
+- `currency`: Moeda (sempre "BRL")
+- `window_days`: Número de dias usado para análise (15, 30 ou 90)
+- `method`: Método de projeção utilizado (`moving_average`, `weighted_average` ou `linear`)
+- `start_date`: Data de início do período (ISO format: YYYY-MM-DD)
+- `end_date`: Data de fim do período (ISO format: YYYY-MM-DD)
+- `today`: Data atual (ISO format: YYYY-MM-DD)
+- `total_days`: Total de dias no período (2x window: histórico + projeção)
+- `days`: Array com todos os dias do período. Cada item contém:
+  - `date`: Data no formato ISO (YYYY-MM-DD)
+  - `realized_daily`: Saldo líquido realizado do dia (receitas - despesas). **null** para datas futuras
+  - `realized_cumulative`: Saldo acumulado realizado. **null** para datas futuras
+  - `predicted_daily`: Saldo líquido previsto do dia (calculado via regressão linear)
+  - `predicted_cumulative`: Saldo acumulado previsto
+
+**Para o Frontend (gráfico de duas linhas):**
+- **Linha "Realizado"** (sólida): usar `realized_cumulative`
+  - Disponível do `start_date` até `today`
+  - Valores `null` a partir de amanhã
+- **Linha "Previsto"** (tracejada): usar `predicted_cumulative`
+  - Disponível para TODO o período (`start_date` até `end_date`)
+  - Permite comparar previsão vs realidade no passado
+  - Mostra projeção futura
+
+**Métodos de projeção:**
+- `moving_average` (recomendado): Usa a média simples dos valores diários históricos como projeção constante. Mais estável para dados voláteis.
+- `weighted_average`: Usa média ponderada exponencial (90% do peso para dados recentes). Útil quando os dados recentes são mais relevantes.
+- `linear`: Usa regressão linear para calcular tendência. Pode produzir projeções instáveis ou negativas se os dados históricos tiverem grande variação.
+
+**Notas:**
+- Valores positivos indicam lucro, negativos indicam prejuízo
+- Comparação visual: se `realized_cumulative` > `predicted_cumulative`, o desempenho está acima do esperado
+- Para dados voláteis (muita variação entre receitas e despesas), prefira `moving_average`
+- O método `linear` pode projetar valores negativos se houver tendência de queda no histórico
+

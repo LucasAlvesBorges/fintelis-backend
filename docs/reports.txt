@@ -1,0 +1,529 @@
+# Documentação dos Endpoints de Relatórios
+
+Os relatórios fornecem dados tabelados e paginados para visualização em tabelas/grids no frontend.
+Cada relatório retorna os totais sem considerar a paginação, permitindo exibir resumos junto com as tabelas.
+
+---
+
+## 1. GET /api/v1/reports/expenses/by-category/
+
+**Descrição:** Relatório detalhado de despesas por categoria. Corresponde ao dashboard de despesas.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `month` (opcional): Mês (1-12). Padrão: mês atual
+- `year` (opcional): Ano. Padrão: ano atual
+- `page` (opcional): Número da página. Padrão: 1
+- `page_size` (opcional): Itens por página (máx 100). Padrão: 10
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 11,
+    "month_name": "novembro",
+    "summary": {
+        "total_expenses": 15000.0,
+        "total_records": 8,
+        "categories": [
+            {
+                "category_id": "88f5fcf2-...",
+                "category_name": "Despesas de Atendimento",
+                "amount": 8000.0,
+                "percentage": 53.33
+            },
+            {
+                "category_id": "06c55420-...",
+                "category_name": "Despesas Operacionais",
+                "amount": 7000.0,
+                "percentage": 46.67
+            }
+        ]
+    },
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 8,
+        "has_next": false,
+        "has_previous": false
+    },
+    "items": [
+        {
+            "id": "42ceed7a-...",
+            "date": "2025-11-28",
+            "description": "Custo",
+            "amount": 5000.0,
+            "category_id": "88f5fcf2-...",
+            "category_name": "Despesas de Atendimento",
+            "parent_category_name": null,
+            "contact_id": "c081a2d2-...",
+            "contact_name": "Fornecedor Exemplo ME",
+            "bank_account_name": "Conta Principal",
+            "cash_register_name": null
+        }
+    ]
+}
+```
+
+---
+
+## 2. GET /api/v1/reports/revenues/by-day/
+
+**Descrição:** Relatório detalhado de receitas por dia. Corresponde ao dashboard de receitas.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `month` (opcional): Mês (1-12). Padrão: mês atual
+- `year` (opcional): Ano. Padrão: ano atual
+- `page` (opcional): Número da página. Padrão: 1
+- `page_size` (opcional): Itens por página (máx 100). Padrão: 10
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 11,
+    "month_name": "novembro",
+    "summary": {
+        "total_revenue": 28000.0,
+        "total_records": 6,
+        "days": [
+            {
+                "date": "2025-11-20",
+                "day": 20,
+                "label": "20 novembro",
+                "amount": 5000.0
+            },
+            {
+                "date": "2025-11-21",
+                "day": 21,
+                "label": "21 novembro",
+                "amount": 6000.0
+            }
+        ]
+    },
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 6,
+        "has_next": false,
+        "has_previous": false
+    },
+    "items": [
+        {
+            "id": "a1b2c3d4-...",
+            "date": "2025-11-24",
+            "description": "Venda produto X",
+            "amount": 3000.0,
+            "category_id": "...",
+            "category_name": "Vendas",
+            "contact_id": "...",
+            "contact_name": "Cliente Exemplo LTDA",
+            "bank_account_name": "Conta Principal",
+            "cash_register_name": null
+        }
+    ]
+}
+```
+
+---
+
+## 3. GET /api/v1/reports/receivables/
+
+**Descrição:** Relatório de contas a receber. Corresponde ao dashboard de saúde financeira (receivables).
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `status` (opcional): Filtro por status. Valores: `overdue`, `current_month`, ou vazio para todos
+- `page` (opcional): Número da página. Padrão: 1
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 12,
+    "filter": "all",
+    "summary": {
+        "receivables_overdue": 20.0,
+        "receivables_open": 13040.0,
+        "receivables_open_current_month": 13000.0
+    },
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 6,
+        "has_next": false,
+        "has_previous": false
+    },
+    "items": [
+        {
+            "id": "06fe0a5e-...",
+            "type": "income",
+            "description": "Venda Mobi",
+            "amount": 20.0,
+            "due_date": "2025-11-01",
+            "is_overdue": true,
+            "category_name": "Vendas",
+            "contact_name": null,
+            "status": "pendente"
+        },
+        {
+            "id": "f1c56fe2-...",
+            "type": "recurring_income_receipt",
+            "description": "Mensalidade",
+            "amount": 4000.0,
+            "due_date": "2025-12-05",
+            "is_overdue": false,
+            "category_name": "Vendas",
+            "contact_name": null,
+            "status": "pendente"
+        }
+    ]
+}
+```
+
+**Tipos de item:**
+- `income`: Conta a receber avulsa (Income)
+- `recurring_income_receipt`: Parcela de receita recorrente (RecurringIncomeReceipt)
+
+---
+
+## 4. GET /api/v1/reports/payables/
+
+**Descrição:** Relatório de contas a pagar. Corresponde ao dashboard de saúde financeira (payables).
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `status` (opcional): Filtro por status. Valores: `overdue`, `current_month`, ou vazio para todos
+- `page` (opcional): Número da página. Padrão: 1
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "month": 12,
+    "filter": "all",
+    "summary": {
+        "payables_overdue": 20.0,
+        "payables_open": 4920.0,
+        "payables_open_current_month": 4900.0
+    },
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 5,
+        "has_next": false,
+        "has_previous": false
+    },
+    "items": [
+        {
+            "id": "53a2f182-...",
+            "type": "bill",
+            "description": "Despesa de Merenda",
+            "amount": 20.0,
+            "due_date": "2025-11-01",
+            "is_overdue": true,
+            "category_name": "Despesas Operacionais",
+            "contact_name": null,
+            "status": "a_vencer"
+        },
+        {
+            "id": "f65d3033-...",
+            "type": "recurring_bill_payment",
+            "description": "Aluguel",
+            "amount": 450.0,
+            "due_date": "2025-12-08",
+            "is_overdue": false,
+            "category_name": "Despesas Operacionais",
+            "contact_name": null,
+            "status": "pendente"
+        }
+    ]
+}
+```
+
+**Tipos de item:**
+- `bill`: Conta a pagar avulsa (Bill)
+- `recurring_bill_payment`: Parcela de despesa recorrente (RecurringBillPayment)
+
+---
+
+## 5. GET /api/v1/reports/transactions/
+
+**Descrição:** Relatório de transações (receitas e despesas). Corresponde ao dashboard de projeção financeira.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `window` (opcional): Período em dias. Valores: `15`, `30`, `90`. Padrão: 30
+- `type` (opcional): Filtro por tipo. Valores: `receita`, `despesa`, ou vazio para todos
+- `page` (opcional): Número da página. Padrão: 1
+- `page_size` (opcional): Itens por página (máx 100). Padrão: 10
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "window_days": 15,
+    "start_date": "2025-11-17",
+    "end_date": "2025-12-01",
+    "filter": "all",
+    "summary": {
+        "total_receitas": 28000.0,
+        "total_despesas": 15000.0,
+        "saldo_liquido": 13000.0,
+        "total_records": 14
+    },
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 2,
+        "total_items": 14,
+        "has_next": true,
+        "has_previous": false
+    },
+    "items": [
+        {
+            "id": "42ceed7a-...",
+            "date": "2025-11-28",
+            "type": "despesa",
+            "type_display": "Despesa",
+            "description": "Custo",
+            "amount": 5000.0,
+            "signed_amount": -5000.0,
+            "category_id": "88f5fcf2-...",
+            "category_name": "Despesas de Atendimento",
+            "parent_category_name": null,
+            "contact_id": "c081a2d2-...",
+            "contact_name": "Fornecedor Exemplo ME",
+            "bank_account_name": "Conta Principal",
+            "cash_register_name": null
+        },
+        {
+            "id": "a1b2c3d4-...",
+            "date": "2025-11-24",
+            "type": "receita",
+            "type_display": "Receita",
+            "description": "Venda produto X",
+            "amount": 3000.0,
+            "signed_amount": 3000.0,
+            "category_id": "...",
+            "category_name": "Vendas",
+            "parent_category_name": null,
+            "contact_id": "...",
+            "contact_name": "Cliente Exemplo LTDA",
+            "bank_account_name": "Conta Principal",
+            "cash_register_name": null
+        }
+    ]
+}
+```
+
+**Campos especiais:**
+- `type`: Tipo da transação (`receita` ou `despesa`)
+- `type_display`: Tipo formatado para exibição
+- `signed_amount`: Valor com sinal (positivo para receitas, negativo para despesas)
+
+---
+
+## Relação entre Dashboards e Reports
+
+| Dashboard | Report | Uso |
+|-----------|--------|-----|
+| `/dashboards/expenses/by-category/` | `/reports/expenses/by-category/` | Gráfico de pizza + Tabela de despesas |
+| `/dashboards/revenues/by-day/` | `/reports/revenues/by-day/` | Gráfico de barras + Tabela de receitas |
+| `/dashboards/financial/summary/` | `/reports/receivables/` + `/reports/payables/` | Cards de resumo + Tabelas de contas |
+| `/dashboards/financial/projection/` | `/reports/transactions/` | Gráfico de linhas + Tabela de transações |
+
+---
+
+## Estrutura de Paginação
+
+Todos os endpoints retornam o objeto `pagination`:
+
+```json
+{
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 2,
+        "total_items": 14,
+        "has_next": true,
+        "has_previous": false
+    }
+}
+```
+
+- `page`: Página atual
+- `page_size`: Itens por página
+- `total_pages`: Total de páginas
+- `total_items`: Total de itens (sem paginação)
+- `has_next`: Se existe próxima página
+- `has_previous`: Se existe página anterior
+
+---
+
+## Estrutura de Summary
+
+O objeto `summary` sempre contém os totais SEM considerar a paginação:
+
+- Permite exibir valores totais (ex: "Total de despesas: R$ 15.000,00")
+- Permite exibir cards de resumo junto com a tabela
+- Útil para calcular percentuais no frontend
+
+---
+
+## 6. GET /api/v1/reports/dre/
+
+**Descrição:** Demonstrativo de Resultado do Exercício (DRE). Agrega transações por categoria hierárquica e mês.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `year` (opcional): Ano do relatório. Padrão: ano atual
+
+**Estrutura do DRE:**
+```
+(+) Receita Bruta
+    - Categorias de receita (com subcategorias)
+(-) Deduções Sobre Vendas
+    - Categorias com "deduc" ou "imposto" no nome
+(=) Receita Líquida
+(-) Custos Variáveis
+    - Categorias com "variáv" no nome
+(=) Margem de Contribuição
+(=) % Margem de Contribuição
+(-) Custos Fixos
+    - Demais categorias de despesa
+(=) Resultado Operacional
+```
+
+**Resposta JSON:**
+```json
+{
+    "currency": "BRL",
+    "year": 2025,
+    "columns": [
+        {"key": "description", "label": "Descrição"},
+        {"key": "month_1", "label": "Janeiro"},
+        {"key": "month_2", "label": "Fevereiro"},
+        ...
+        {"key": "month_12", "label": "Dezembro"},
+        {"key": "yearly_total", "label": "2025"},
+        {"key": "av_percent", "label": "AV%"}
+    ],
+    "rows": [
+        {
+            "code": null,
+            "name": "Receita Bruta",
+            "row_type": "subtotal",
+            "indent": 0,
+            "sign": "+",
+            "monthly": [
+                {"month": 1, "month_name": "janeiro", "value": 0.0},
+                {"month": 2, "month_name": "fevereiro", "value": 0.0},
+                ...
+                {"month": 11, "month_name": "novembro", "value": 28000.0},
+                {"month": 12, "month_name": "dezembro", "value": 0.0}
+            ],
+            "yearly_total": 28000.0,
+            "av_percent": 100.0
+        },
+        {
+            "code": "1",
+            "name": "Vendas",
+            "row_type": "category",
+            "indent": 1,
+            "sign": "+",
+            "monthly": [...],
+            "yearly_total": 28000.0,
+            "av_percent": 100.0
+        },
+        {
+            "code": null,
+            "name": "Deduções Sobre Vendas",
+            "row_type": "subtotal",
+            "indent": 0,
+            "sign": "-",
+            "monthly": [...],
+            "yearly_total": 0,
+            "av_percent": 0.0
+        },
+        {
+            "code": null,
+            "name": "Receita Líquida",
+            "row_type": "total",
+            "indent": 0,
+            "sign": "=",
+            "monthly": [...],
+            "yearly_total": 28000.0,
+            "av_percent": 100.0
+        },
+        ...
+        {
+            "code": null,
+            "name": "Resultado Operacional",
+            "row_type": "total",
+            "indent": 0,
+            "sign": "=",
+            "monthly": [...],
+            "yearly_total": 13000.0,
+            "av_percent": 46.43
+        }
+    ],
+    "summary": {
+        "receita_bruta": 28000.0,
+        "deducoes": 0,
+        "receita_liquida": 28000.0,
+        "custos_variaveis": 0,
+        "margem_contribuicao": 28000.0,
+        "custos_fixos": 15000.0,
+        "resultado_operacional": 13000.0
+    }
+}
+```
+
+**Campos das rows:**
+- `code`: Código da categoria (ex: "1", "1.1", "5.3")
+- `name`: Nome da linha
+- `row_type`: Tipo da linha:
+  - `subtotal`: Linha de subtotal (Receita Bruta, Custos Fixos, etc.)
+  - `total`: Linha de resultado (Receita Líquida, Margem de Contribuição, etc.)
+  - `category`: Categoria pai
+  - `subcategory`: Subcategoria
+  - `percent`: Linha de percentual
+- `indent`: Nível de indentação (0 = raiz, 1 = categoria, 2 = subcategoria)
+- `sign`: Sinal da linha:
+  - `+`: Soma (receitas)
+  - `-`: Subtração (despesas)
+  - `=`: Resultado (cálculo)
+- `monthly`: Array com valores de cada mês
+- `yearly_total`: Total anual
+- `av_percent`: Análise Vertical (% em relação à Receita Bruta)
+
+**Categorização automática:**
+- **Deduções**: Categorias de despesa com "deduc" ou "imposto" no nome
+- **Custos Variáveis**: Categorias de despesa com "variáv" no nome
+- **Custos Fixos**: Demais categorias de despesa
+
+**Para o Frontend:**
+- Use `indent` para criar a hierarquia visual (padding/margin)
+- Use `sign` para colorir as linhas:
+  - `+`: Verde (receitas)
+  - `-`: Vermelho (despesas)
+  - `=`: Azul (resultados)
+- Use `row_type` para estilizar diferente (bold para totais/subtotais)
+- Use `av_percent` para mostrar análise vertical
+
