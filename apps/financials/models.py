@@ -828,6 +828,122 @@ class RecurringBill(TimeStampedModel):
         return f"#{str(self.order).zfill(2)}"
 
 
+class RecurringBillPayment(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDENTE = "pendente", "Pendente"
+        QUITADA = "quitada", "Quitada"
+
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name="recurring_bill_payments",
+    )
+    recurring_bill = models.ForeignKey(
+        RecurringBill,
+        on_delete=models.CASCADE,
+        related_name="payments",
+    )
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.SET_NULL,
+        related_name="recurring_bill_payments",
+        null=True,
+        blank=True,
+    )
+    due_date = models.DateField()
+    paid_on = models.DateField(null=True, blank=True)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDENTE
+    )
+
+    class Meta:
+        db_table = "recurring_bill_payment"
+        ordering = ["-due_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "recurring_bill", "due_date"],
+                name="uniq_recurring_bill_payment_cycle",
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.recurring_bill and self.recurring_bill.company_id != self.company_id:
+            errors["recurring_bill"] = "Recurring bill must belong to the same company."
+        if self.transaction:
+            if self.transaction.company_id != self.company_id:
+                errors["transaction"] = "Transaction must belong to the same company."
+            elif self.transaction.type != Transaction.Types.DESPESA:
+                errors["transaction"] = (
+                    "Payment transaction must be an expense (DESPESA)."
+                )
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f"{self.recurring_bill} - {self.due_date} ({self.get_status_display()})"
+
+
+class RecurringIncomeReceipt(TimeStampedModel):
+    class Status(models.TextChoices):
+        PENDENTE = "pendente", "Pendente"
+        RECEBIDO = "recebido", "Recebido"
+
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name="recurring_income_receipts",
+    )
+    recurring_income = models.ForeignKey(
+        "RecurringIncome",
+        on_delete=models.CASCADE,
+        related_name="receipts",
+    )
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.SET_NULL,
+        related_name="recurring_income_receipts",
+        null=True,
+        blank=True,
+    )
+    due_date = models.DateField()
+    received_on = models.DateField(null=True, blank=True)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDENTE
+    )
+
+    class Meta:
+        db_table = "recurring_income_receipt"
+        ordering = ["-due_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "recurring_income", "due_date"],
+                name="uniq_recurring_income_receipt_cycle",
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.recurring_income and self.recurring_income.company_id != self.company_id:
+            errors["recurring_income"] = "Recurring income must belong to the same company."
+        if self.transaction:
+            if self.transaction.company_id != self.company_id:
+                errors["transaction"] = "Transaction must belong to the same company."
+            elif self.transaction.type != Transaction.Types.RECEITA:
+                errors["transaction"] = (
+                    "Receipt transaction must be a revenue (RECEITA)."
+                )
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f"{self.recurring_income} - {self.due_date} ({self.get_status_display()})"
+
+
 class RecurringIncome(TimeStampedModel):
     company = models.ForeignKey(
         Company,

@@ -10,7 +10,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.financials.mixins import ActiveCompanyMixin
-from apps.financials.models import Transaction
+from apps.financials.models import (
+    Bill,
+    Income,
+    RecurringBillPayment,
+    RecurringIncomeReceipt,
+    Transaction,
+)
 from apps.financials.permissions import IsCompanyMember
 
 
@@ -49,6 +55,11 @@ def _parse_month_year(request):
     if month < 1 or month > 12:
         raise ValidationError("month deve estar entre 1 e 12.")
     return month, year
+
+
+def _sum_amount(qs):
+    total = qs.aggregate(total=Sum("amount"))["total"]
+    return total or Decimal("0")
 
 
 class ExpenseBreakdownView(ActiveCompanyMixin, APIView):
@@ -178,4 +189,72 @@ class RevenueByDayView(ActiveCompanyMixin, APIView):
             "days": days,
         }
         cache.set(cache_key, payload, CACHE_TIMEOUT)
+        return Response(payload)
+
+
+class FinancialHealthSummaryView(ActiveCompanyMixin, APIView):
+    
+    """
+    Valores agregados para contas a receber/pagar (atrasos e em aberto).
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsCompanyMember]
+
+    def get(self, request):
+        company = self.get_active_company()
+        today = timezone.localdate()
+        month = today.month
+        year = today.year
+
+        receipts_pending = RecurringIncomeReceipt.objects.filter(
+            company=company, status=RecurringIncomeReceipt.Status.PENDENTE
+        )
+        receipts_pending_dates = set(
+            receipts_pending.values_list("due_date", flat=True)
+        )
+        incomes_pending = (
+            Income.objects.filter(company=company, status=Income.Status.PENDENTE)
+            .exclude(due_date__in=receipts_pending_dates)
+        )
+
+        receivables_overdue = _sum_amount(
+            incomes_pending.filter(due_date__lt=today)
+        ) + _sum_amount(receipts_pending.filter(due_date__lt=today))
+
+        receivables_open = _sum_amount(incomes_pending) + _sum_amount(
+            receipts_pending
+        )
+
+        receivables_open_month = _sum_amount(
+            incomes_pending.filter(due_date__year=year, due_date__month=month)
+        ) + _sum_amount(
+            receipts_pending.filter(due_date__year=year, due_date__month=month)
+        )
+
+        recurring_bills_pending = RecurringBillPayment.objects.filter(
+            company=company, status=RecurringBillPayment.Status.PENDENTE
+        )
+        recurring_bills_dates = set(
+            recurring_bills_pending.values_list("due_date", flat=True)
+        )
+        bills_pending = (
+            Bill.objects.filter(company=company, status=Bill.Status.A_VENCER)
+            .exclude(due_date__in=recurring_bills_dates)
+        )
+
+        payables_overdue = _sum_amount(
+            bills_pending.filter(due_date__lt=today)
+        ) + _sum_amount(
+            recurring_bills_pending.filter(due_date__lt=today)
+        )
+
+        payload = {
+            "currency": "BRL",
+            "year": year,
+            "month": month,
+            "receivables_overdue": receivables_overdue,
+            "receivables_open": receivables_open,
+            "receivables_open_current_month": receivables_open_month,
+            "payables_overdue": payables_overdue,
+        }
         return Response(payload)

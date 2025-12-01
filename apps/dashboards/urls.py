@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import ExpenseBreakdownView, RevenueByDayView
+from .views import ExpenseBreakdownView, FinancialHealthSummaryView, RevenueByDayView
 
 urlpatterns = [
     path(
@@ -12,5 +12,10 @@ urlpatterns = [
         "revenues/by-day/",
         RevenueByDayView.as_view(),
         name="dashboard-revenues-by-day",
+    ),
+    path(
+        "financial/summary/",
+        FinancialHealthSummaryView.as_view(),
+        name="dashboard-financial-summary",
     ),
 ]

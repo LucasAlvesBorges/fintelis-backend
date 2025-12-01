@@ -1,19 +1,14 @@
-# Estrutura de Dados Retornados pelos Endpoints GET de Dashboards
+# Documentação dos Endpoints de Dashboards
 
-Este documento mostra a estrutura JSON retornada pelos endpoints GET do módulo dashboards.
+## 1. GET /api/v1/dashboards/expenses/by-category/
 
-## Endpoint: GET /api/v1/dashboards/expenses/by-category/
+**Descrição:** Agrupa despesas por categoria pai para o gráfico de pizza.
 
-Retorna um breakdown de despesas agrupadas por categoria pai para gráfico de pizza.
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
 
 **Query Parameters:**
-- `month` (opcional): Mês (1-12). Se não fornecido, usa o mês atual.
-- `year` (opcional): Ano (ex: 2025). Se não fornecido, usa o ano atual.
-
-**Exemplo de requisição:**
-```
-GET /api/v1/dashboards/expenses/by-category/?month=11&year=2025
-```
+- `month` (opcional): Mês (1-12). Padrão: mês atual
+- `year` (opcional): Ano. Padrão: ano atual
 
 **Resposta JSON:**
 ```json
@@ -40,48 +35,27 @@ GET /api/v1/dashboards/expenses/by-category/?month=11&year=2025
 ```
 
 **Campos:**
-- `currency`: Moeda utilizada (sempre "BRL")
-- `year`: Ano dos dados retornados (integer)
-- `month`: Mês dos dados retornados (integer, 1-12)
-- `total_expenses`: Total de despesas no período (decimal)
-- `categories`: Array de objetos com breakdown por categoria
-  - `category_id`: UUID da categoria pai (string, pode ser null se "Sem categoria")
-  - `category_name`: Nome da categoria pai (string)
-  - `amount`: Valor total da categoria (decimal)
-  - `percentage`: Percentual do total de despesas (float, arredondado para 2 casas decimais)
-
-
-**Exemplo sem despesas no período:**
-```json
-{
-    "currency": "BRL",
-    "year": 2025,
-    "month": 10,
-    "total_expenses": 0.0,
-    "categories": []
-}
-```
-
-**Observações:**
-- As categorias são agrupadas por categoria pai. Se uma transação não tem categoria, aparece como "Sem categoria".
-- Se uma categoria tem subcategorias, o agrupamento é feito pela categoria pai.
-- As categorias são ordenadas por valor total (maior para menor).
-- O percentual é calculado em relação ao `total_expenses`.
+- `currency`: Moeda (sempre "BRL")
+- `year`: Ano dos dados
+- `month`: Mês dos dados
+- `total_expenses`: Total de despesas no período
+- `categories`: Array de categorias com:
+  - `category_id`: UUID da categoria pai
+  - `category_name`: Nome da categoria pai
+  - `amount`: Valor total da categoria
+  - `percentage`: Percentual em relação ao total (2 casas decimais)
 
 ---
 
-## Endpoint: GET /api/v1/dashboards/revenues/by-day/
+## 2. GET /api/v1/dashboards/revenues/by-day/
 
-Retorna receitas agrupadas por dia dentro do mês para gráfico de barras.
+**Descrição:** Soma receitas por dia dentro do mês para o gráfico de barras.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
 
 **Query Parameters:**
-- `month` (opcional): Mês (1-12). Se não fornecido, usa o mês atual.
-- `year` (opcional): Ano (ex: 2025). Se não fornecido, usa o ano atual.
-
-**Exemplo de requisição:**
-```
-GET /api/v1/dashboards/revenues/by-day/?month=11&year=2025
-```
+- `month` (opcional): Mês (1-12). Padrão: mês atual
+- `year` (opcional): Ano. Padrão: ano atual
 
 **Resposta JSON:**
 ```json
@@ -108,61 +82,52 @@ GET /api/v1/dashboards/revenues/by-day/?month=11&year=2025
 ```
 
 **Campos:**
-- `currency`: Moeda utilizada (sempre "BRL")
-- `year`: Ano dos dados retornados (integer)
-- `month`: Mês dos dados retornados (integer, 1-12)
-- `total_revenue`: Total de receitas no período (decimal)
-- `days`: Array de objetos com receitas por dia
+- `currency`: Moeda (sempre "BRL")
+- `year`: Ano dos dados
+- `month`: Mês dos dados
+- `total_revenue`: Total de receitas no período
+- `days`: Array de dias com:
   - `date`: Data no formato ISO (YYYY-MM-DD)
-  - `day`: Dia do mês (integer, 1-31)
-  - `label`: Label formatado para exibição (string, ex: "23 novembro")
-  - `amount`: Valor total de receitas no dia (decimal)
+  - `day`: Dia do mês (número)
+  - `label`: Label formatado (ex: "23 novembro")
+  - `amount`: Valor total do dia
 
-**Exemplo sem receitas no período:**
+---
+
+## 3. GET /api/v1/dashboards/financial/summary/
+
+**Descrição:** Valores agregados para contas a receber/pagar (atrasos e em aberto).
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:** Nenhum (usa mês/ano atual automaticamente)
+
+**Resposta JSON:**
 ```json
 {
     "currency": "BRL",
     "year": 2025,
-    "month": 10,
-    "total_revenue": 0.0,
-    "days": []
+    "month": 12,
+    "receivables_overdue": 0.0,
+    "receivables_open": 13000.0,
+    "receivables_open_current_month": 13000.0,
+    "payables_overdue": 0.0
 }
 ```
 
-**Observações:**
-- Apenas dias com receitas são incluídos no array `days`.
-- Os dias são ordenados por número do dia (crescente).
-- O label é formatado em português com o nome do mês (ex: "23 novembro", "05 dezembro").
-- O `total_revenue` é a soma de todas as receitas do mês, não apenas dos dias listados.
+**Campos:**
+- `currency`: Moeda (sempre "BRL")
+- `year`: Ano de referência (ano atual)
+- `month`: Mês de referência (mês atual)
+- `receivables_overdue`: Total de contas a receber vencidas (Income + RecurringIncomeReceipt com status PENDENTE e due_date < hoje)
+- `receivables_open`: Total de contas a receber em aberto (todas as Income + RecurringIncomeReceipt com status PENDENTE)
+- `receivables_open_current_month`: Total de contas a receber em aberto do mês atual (Income + RecurringIncomeReceipt com status PENDENTE e due_date no mês/ano atual)
+- `payables_overdue`: Total de contas a pagar vencidas (Bill + RecurringBillPayment com status A_VENCER/PENDENTE e due_date < hoje)
 
----
-
-## Autenticação
-
-Todos os endpoints requerem:
-- Header `Authorization: Bearer <access_token>`
-- Header `X-Company-Token: <company_token>` ou cookie `company_access_token`
-
-## Validação de Parâmetros
-
-- `month` deve ser um inteiro entre 1 e 12.
-- `year` deve ser um inteiro válido.
-- Se `month` ou `year` não forem fornecidos, são usados os valores do mês/ano atual.
-- Se valores inválidos forem fornecidos, a API retorna erro 400 com mensagem de validação.
-
-## Exemplos de Erro
-
-**Parâmetro inválido:**
-```json
-{
-    "month": ["month deve estar entre 1 e 12."]
-}
-```
-
-**Parâmetro não numérico:**
-```json
-{
-    "non_field_errors": ["month e year devem ser inteiros."]
-}
-```
+**Notas:**
+- Os valores são calculados considerando:
+  - **Receivables (Contas a Receber):** `Income` com status `PENDENTE` + `RecurringIncomeReceipt` com status `PENDENTE`
+  - **Payables (Contas a Pagar):** `Bill` com status `A_VENCER` + `RecurringBillPayment` com status `PENDENTE`
+- `receivables_overdue` e `payables_overdue` consideram apenas itens com `due_date` anterior à data atual
+- `receivables_open_current_month` filtra por mês/ano atual
 

@@ -9,7 +9,9 @@ from .models import (
     Income,
     PaymentMethod,
     RecurringBill,
+    RecurringBillPayment,
     RecurringIncome,
+    RecurringIncomeReceipt,
     Transaction,
 )
 
@@ -159,6 +161,23 @@ class RecurringBillAdmin(admin.ModelAdmin):
     date_hierarchy = "next_due_date"
 
 
+@admin.register(RecurringBillPayment)
+class RecurringBillPaymentAdmin(admin.ModelAdmin):
+    list_display = (
+        "recurring_bill",
+        "company",
+        "status",
+        "amount",
+        "due_date",
+        "paid_on",
+        "transaction",
+    )
+    autocomplete_fields = ("company", "recurring_bill", "transaction")
+    search_fields = ("recurring_bill__description", "company__name")
+    list_filter = ("status", "due_date", "company")
+    date_hierarchy = "due_date"
+
+
 @admin.register(RecurringIncome)
 class RecurringIncomeAdmin(admin.ModelAdmin):
     list_display = (
@@ -176,6 +195,23 @@ class RecurringIncomeAdmin(admin.ModelAdmin):
     search_fields = ("description", "company__name")
     list_filter = ("frequency", "is_active", "company")
     date_hierarchy = "next_due_date"
+
+
+@admin.register(RecurringIncomeReceipt)
+class RecurringIncomeReceiptAdmin(admin.ModelAdmin):
+    list_display = (
+        "recurring_income",
+        "company",
+        "status",
+        "amount",
+        "due_date",
+        "received_on",
+        "transaction",
+    )
+    autocomplete_fields = ("company", "recurring_income", "transaction")
+    search_fields = ("recurring_income__description", "company__name")
+    list_filter = ("status", "due_date", "company")
+    date_hierarchy = "due_date"
 
 
 @admin.register(PaymentMethod)

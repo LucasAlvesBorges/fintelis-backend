@@ -1,3 +1,8 @@
+import calendar
+from datetime import date, timedelta
+
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -9,10 +14,13 @@ from .models import (
     Income,
     PaymentMethod,
     RecurringBill,
+    RecurringBillPayment,
     RecurringIncome,
+    RecurringIncomeReceipt,
     Transaction,
 )
 from apps.contacts.models import Contact
+from .models import FrequencyChoices
 
 
 class CompanyContextMixin:
@@ -39,6 +47,42 @@ class CompanyScopedModelSerializer(CompanyContextMixin, serializers.ModelSeriali
 
 class CompanyScopedSerializer(CompanyContextMixin, serializers.Serializer):
     pass
+
+
+def _add_months(base_date: date, months: int) -> date:
+    month = base_date.month - 1 + months
+    year = base_date.year + month // 12
+    month = month % 12 + 1
+    day = min(base_date.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def _next_due_date(current: date, frequency: str) -> date | None:
+    if not current:
+        return None
+    if frequency == FrequencyChoices.DAILY:
+        return current + timedelta(days=1)
+    if frequency == FrequencyChoices.WEEKLY:
+        return current + timedelta(days=7)
+    if frequency == FrequencyChoices.MONTHLY:
+        return _add_months(current, 1)
+    if frequency == FrequencyChoices.QUARTERLY:
+        return _add_months(current, 3)
+    if frequency == FrequencyChoices.YEARLY:
+        return _add_months(current, 12)
+    return None
+
+
+def _build_schedule_dates(start: date | None, frequency: str, end: date | None, *, months_horizon: int = 12):
+    if not start:
+        return []
+    horizon = end or _add_months(start, months_horizon)
+    dates = []
+    current = start
+    while current and current <= horizon:
+        dates.append(current)
+        current = _next_due_date(current, frequency)
+    return dates
 
 
 class BankSerializer(serializers.ModelSerializer):
@@ -403,6 +447,50 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
             "updated_at",
         )
 
+    def _regenerate_payments(self, instance: RecurringBill):
+        today = timezone.localdate()
+        base_qs = RecurringBillPayment.objects.filter(recurring_bill=instance)
+        existing_paid_dates = set(
+            base_qs.exclude(status=RecurringBillPayment.Status.PENDENTE).values_list("due_date", flat=True)
+        )
+        base_qs.filter(status=RecurringBillPayment.Status.PENDENTE, due_date__gte=today).delete()
+
+        start = instance.next_due_date or instance.start_date
+        schedule_dates = _build_schedule_dates(start, instance.frequency, instance.end_date, months_horizon=12)
+        to_create = []
+        for due in schedule_dates:
+            if due in existing_paid_dates:
+                continue
+            to_create.append(
+                RecurringBillPayment(
+                    company=instance.company,
+                    recurring_bill=instance,
+                    due_date=due,
+                    amount=instance.amount,
+                    status=RecurringBillPayment.Status.PENDENTE,
+                )
+            )
+        if to_create:
+            RecurringBillPayment.objects.bulk_create(to_create, ignore_conflicts=True)
+
+    def create(self, validated_data):
+        company = self.context.get("company")
+        if company:
+            validated_data["company"] = company
+        with transaction.atomic():
+            instance = super().create(validated_data)
+            self._regenerate_payments(instance)
+        return instance
+
+    def update(self, instance, validated_data):
+        schedule_fields = {"amount", "frequency", "start_date", "end_date", "next_due_date"}
+        should_regen = any(field in validated_data for field in schedule_fields)
+        with transaction.atomic():
+            instance = super().update(instance, validated_data)
+            if should_regen:
+                self._regenerate_payments(instance)
+        return instance
+
 
 class RecurringIncomeSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category", "cost_center")
@@ -444,6 +532,50 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
             "created_at",
             "updated_at",
         )
+
+    def _regenerate_receipts(self, instance: RecurringIncome):
+        today = timezone.localdate()
+        base_qs = RecurringIncomeReceipt.objects.filter(recurring_income=instance)
+        existing_received_dates = set(
+            base_qs.exclude(status=RecurringIncomeReceipt.Status.PENDENTE).values_list("due_date", flat=True)
+        )
+        base_qs.filter(status=RecurringIncomeReceipt.Status.PENDENTE, due_date__gte=today).delete()
+
+        start = instance.next_due_date or instance.start_date
+        schedule_dates = _build_schedule_dates(start, instance.frequency, instance.end_date, months_horizon=12)
+        to_create = []
+        for due in schedule_dates:
+            if due in existing_received_dates:
+                continue
+            to_create.append(
+                RecurringIncomeReceipt(
+                    company=instance.company,
+                    recurring_income=instance,
+                    due_date=due,
+                    amount=instance.amount,
+                    status=RecurringIncomeReceipt.Status.PENDENTE,
+                )
+            )
+        if to_create:
+            RecurringIncomeReceipt.objects.bulk_create(to_create, ignore_conflicts=True)
+
+    def create(self, validated_data):
+        company = self.context.get("company")
+        if company:
+            validated_data["company"] = company
+        with transaction.atomic():
+            instance = super().create(validated_data)
+            self._regenerate_receipts(instance)
+        return instance
+
+    def update(self, instance, validated_data):
+        schedule_fields = {"amount", "frequency", "start_date", "end_date", "next_due_date"}
+        should_regen = any(field in validated_data for field in schedule_fields)
+        with transaction.atomic():
+            instance = super().update(instance, validated_data)
+            if should_regen:
+                self._regenerate_receipts(instance)
+        return instance
 
 
 class BillPaymentSerializer(CompanyScopedSerializer):
