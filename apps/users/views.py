@@ -1,6 +1,6 @@
 from django.conf import settings
 from rest_framework import status
-from rest_framework.generics import ListAPIView
+from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -9,10 +9,14 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.companies.models import Invitation
 from apps.companies.serializers import InvitationSerializer
+from apps.financials.mixins import ActiveCompanyMixin
 
+from .models import User
 from .serializers import (
     CompanyTokenObtainSerializer,
     LoginSerializer,
+    OperatorSerializer,
+    OperatorListSerializer,
     PasswordChangeSerializer,
     RegisterSerializer,
     UserAuthenticationSerializer,
@@ -102,6 +106,59 @@ class InvitationPagination(PageNumberPagination):
     page_size = 3
     page_size_query_param = 'page_size'
     max_page_size = 3
+
+
+class OperatorPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
+
+class OperatorListCreateView(ActiveCompanyMixin, ListCreateAPIView):
+    """
+    Lista e cria operadores da empresa ativa.
+    Operadores são usuários sem login, usados para histórico de vendas em caixas/PDV.
+    """
+    permission_classes = [IsAuthenticated]
+    pagination_class = OperatorPagination
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return OperatorSerializer
+        return OperatorListSerializer
+
+    def get_queryset(self):
+        company = self.get_active_company()
+        return User.objects.filter(
+            user_type=User.UserType.OPERADOR,
+            operator_company=company
+        ).order_by("first_name", "last_name")
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["company"] = self.get_active_company()
+        return ctx
+
+
+class OperatorDetailView(ActiveCompanyMixin, RetrieveUpdateDestroyAPIView):
+    """
+    Recupera, atualiza ou remove um operador da empresa ativa.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = OperatorSerializer
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        company = self.get_active_company()
+        return User.objects.filter(
+            user_type=User.UserType.OPERADOR,
+            operator_company=company
+        )
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["company"] = self.get_active_company()
+        return ctx
 
 
 class MyInvitationsView(ListAPIView):

@@ -1,0 +1,264 @@
+# API de Detalhes de Fornecedores/Clientes (Contact)
+
+Documentação do endpoint de detalhes de contatos (fornecedores/clientes), incluindo todas as transações, bills, incomes e contas recorrentes associadas.
+
+---
+
+## GET /api/v1/contacts/{id}/details/
+
+**Descrição:** Retorna detalhes completos de um fornecedor/cliente, incluindo histórico de transações, bills, incomes e contas recorrentes associadas.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do contato
+
+**Query Parameters:**
+- `transactions_page` (opcional, Integer): Número da página para transações (padrão: 1)
+- `bills_page` (opcional, Integer): Número da página para bills (padrão: 1)
+- `incomes_page` (opcional, Integer): Número da página para incomes (padrão: 1)
+- `recurring_bills_page` (opcional, Integer): Número da página para recurring bills (padrão: 1)
+- `recurring_incomes_page` (opcional, Integer): Número da página para recurring incomes (padrão: 1)
+
+**Nota:** 
+- Paginação fixa de 5 itens por página para cada tipo de dado
+- Transações ordenadas pela última transação que ocorreu (`-created_at`, `-transaction_date`, `-id`)
+- Bills e Incomes ordenadas por data de vencimento (`-due_date`, `-id`)
+- Recurring Bills e Recurring Incomes ordenadas por próxima data de vencimento (`-next_due_date`, `-id`)
+
+**Resposta JSON:**
+```json
+{
+    "contact": {
+        "id": "c081a2d2-3dbb-4cf1-b662-32ce1d4c6540",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "name": "Fornecedor Exemplo ME",
+        "fantasy_name": null,
+        "tax_id": "98765432000111",
+        "email": "fornecedor@example.com",
+        "phone": "11888888888",
+        "type": "fornecedor",
+        "created_at": "2025-11-28T12:18:52.548541-03:00",
+        "updated_at": "2025-11-28T12:18:52.548550-03:00"
+    },
+    "summary": {
+        "total_receitas": 0.0,
+        "total_despesas": 10400.0,
+        "total_bills": 3300.0,
+        "total_incomes": 0.0,
+        "total_transactions": 5,
+        "total_bills_count": 4,
+        "total_incomes_count": 0,
+        "total_recurring_bills": 0,
+        "total_recurring_incomes": 0
+    },
+    "transactions": {
+        "items": [
+            {
+                "id": "42ceed7a-ad16-4709-9dc1-8d14f994ec57",
+                "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+                "company_name": "Startec Serviços e Tecnologia",
+                "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+                "bank_account_name": "Conta Principal",
+                "category": "88f5fcf2-144e-4ba3-b918-cc4df562f383",
+                "category_name": "Despesas de Atendimento",
+                "cash_register": null,
+                "cash_register_name": null,
+                "contact": "c081a2d2-3dbb-4cf1-b662-32ce1d4c6540",
+                "contact_name": "Fornecedor Exemplo ME",
+                "cost_center": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+                "cost_center_name": "Departamento Comercial",
+                "payment_method": "c32ebfed-fe56-4f84-98e3-5580c14e1241",
+                "payment_method_name": "Pix",
+                "order": 8,
+                "order_code": "#08",
+                "related_transaction": null,
+                "linked_transaction": null,
+                "description": "Custo",
+                "amount": "5000.00",
+                "type": "despesa",
+                "transaction_date": "2025-11-28",
+                "created_at": "2025-11-28T14:56:21.449600-03:00",
+                "updated_at": "2025-11-28T14:56:21.449612-03:00"
+            }
+        ],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 1,
+            "total_items": 5,
+            "has_next": false,
+            "has_previous": false
+        }
+    },
+    "bills": {
+        "items": [
+            {
+                "id": "...",
+                "company": "...",
+                "category": "...",
+                "contact": "...",
+                "cost_center": "...",
+                "payment_transaction": "...",
+                "order": 1,
+                "order_code": "#01",
+                "description": "Conta a pagar",
+                "amount": "1000.00",
+                "due_date": "2025-12-15",
+                "status": "a_vencer",
+                "created_at": "...",
+                "updated_at": "..."
+            }
+        ],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 1,
+            "total_items": 4,
+            "has_next": false,
+            "has_previous": false
+        }
+    },
+    "incomes": {
+        "items": [],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 1,
+            "total_items": 0,
+            "has_next": false,
+            "has_previous": false
+        }
+    },
+    "recurring_bills": {
+        "items": [],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 1,
+            "total_items": 0,
+            "has_next": false,
+            "has_previous": false
+        }
+    },
+    "recurring_incomes": {
+        "items": [],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 1,
+            "total_items": 0,
+            "has_next": false,
+            "has_previous": false
+        }
+    }
+}
+```
+
+### Campos da Resposta
+
+#### `contact` (Object)
+Informações do contato selecionado:
+- `id` (UUID): Identificador único do contato
+- `company` (UUID): ID da empresa
+- `name` (String): Nome do contato
+- `fantasy_name` (String|null): Nome fantasia
+- `tax_id` (String|null): CNPJ/CPF
+- `email` (String|null): Email
+- `phone` (String|null): Telefone
+- `type` (String): Tipo do contato (`cliente`, `fornecedor`, `ambos`)
+- `created_at` (ISO DateTime): Data de criação
+- `updated_at` (ISO DateTime): Data de última atualização
+
+#### `summary` (Object)
+Resumo financeiro do contato:
+- `total_receitas` (Decimal): Soma total de todas as receitas (transações do tipo `receita`)
+- `total_despesas` (Decimal): Soma total de todas as despesas (transações do tipo `despesa`, `transferencia_externa`, `estorno`)
+- `total_bills` (Decimal): Soma total de todas as bills associadas
+- `total_incomes` (Decimal): Soma total de todas as incomes associadas
+- `total_transactions` (Integer): Número total de transações
+- `total_bills_count` (Integer): Número total de bills
+- `total_incomes_count` (Integer): Número total de incomes
+- `total_recurring_bills` (Integer): Número total de recurring bills associadas (via transações)
+- `total_recurring_incomes` (Integer): Número total de recurring incomes associadas (via transações)
+
+#### `transactions` (Object)
+Lista paginada de transações associadas ao contato:
+- `items` (Array): Array de transações (máximo 5 por página)
+- `pagination` (Object): Informações de paginação
+  - `page` (Integer): Página atual
+  - `page_size` (Integer): Itens por página (sempre 5)
+  - `total_pages` (Integer): Total de páginas
+  - `total_items` (Integer): Total de transações
+  - `has_next` (Boolean): Indica se há próxima página
+  - `has_previous` (Boolean): Indica se há página anterior
+
+#### `bills` (Object)
+Lista paginada de contas a pagar associadas ao contato:
+- `items` (Array): Array de bills (máximo 5 por página)
+- `pagination` (Object): Informações de paginação (mesma estrutura de `transactions.pagination`)
+
+#### `incomes` (Object)
+Lista paginada de contas a receber associadas ao contato:
+- `items` (Array): Array de incomes (máximo 5 por página)
+- `pagination` (Object): Informações de paginação (mesma estrutura de `transactions.pagination`)
+
+#### `recurring_bills` (Object)
+Lista paginada de contas recorrentes a pagar associadas ao contato:
+- `items` (Array): Array de recurring bills (máximo 5 por página)
+- `pagination` (Object): Informações de paginação (mesma estrutura de `transactions.pagination`)
+- **Nota:** Recurring bills são buscadas através das transações que têm o contato e estão relacionadas a `RecurringBillPayment`
+
+#### `recurring_incomes` (Object)
+Lista paginada de contas recorrentes a receber associadas ao contato:
+- `items` (Array): Array de recurring incomes (máximo 5 por página)
+- `pagination` (Object): Informações de paginação (mesma estrutura de `transactions.pagination`)
+- **Nota:** Recurring incomes são buscadas através das transações que têm o contato e estão relacionadas a `RecurringIncomeReceipt`
+
+### Ordenação
+- `transactions`: Ordenadas pela última transação que ocorreu (`-created_at`, `-transaction_date`, `-id`) - as mais recentes aparecem primeiro
+- `bills`: Ordenadas por data de vencimento (`-due_date`, `-id`) - as mais próximas aparecem primeiro
+- `incomes`: Ordenadas por data de vencimento (`-due_date`, `-id`) - as mais próximas aparecem primeiro
+- `recurring_bills`: Ordenadas por próxima data de vencimento (`-next_due_date`, `-id`)
+- `recurring_incomes`: Ordenadas por próxima data de vencimento (`-next_due_date`, `-id`)
+
+### Comportamento
+- **Paginação fixa**: 5 itens por página para cada tipo de dado
+- **Resumo completo**: O resumo sempre mostra totais completos de todas as transações, bills e incomes do contato
+- **Recurring Bills/Incomes**: São buscadas indiretamente através das transações que têm o contato e estão relacionadas aos pagamentos/recebimentos recorrentes
+
+### Exemplos de Uso
+
+#### 1. Buscar detalhes básicos de um contato
+```bash
+GET /api/v1/contacts/{id}/details/
+```
+
+#### 2. Buscar transações na página 2
+```bash
+GET /api/v1/contacts/{id}/details/?transactions_page=2
+```
+
+#### 3. Buscar bills na página 2 e incomes na página 1
+```bash
+GET /api/v1/contacts/{id}/details/?bills_page=2&incomes_page=1
+```
+
+#### 4. Buscar todas as páginas separadamente
+```bash
+GET /api/v1/contacts/{id}/details/?transactions_page=1&bills_page=1&incomes_page=1&recurring_bills_page=1&recurring_incomes_page=1
+```
+
+### Códigos de Status HTTP
+- `200 OK`: Sucesso
+- `400 Bad Request`: Parâmetros inválidos
+- `401 Unauthorized`: Token de autenticação inválido ou ausente
+- `403 Forbidden`: Contato não pertence à empresa ativa
+- `404 Not Found`: Contato não encontrado
+
+### Notas
+- A paginação é fixa em 5 itens por página para cada tipo de dado
+- Cada tipo de dado (transactions, bills, incomes, recurring_bills, recurring_incomes) tem sua própria paginação independente
+- O resumo sempre considera todas as transações, bills e incomes do contato, independente da paginação
+- Recurring bills e recurring incomes são buscadas através das transações relacionadas, pois não há relacionamento direto com Contact
+

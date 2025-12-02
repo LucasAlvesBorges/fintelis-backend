@@ -6,6 +6,8 @@ from .views import (
     LoginView,
     MeView,
     MyInvitationsView,
+    OperatorDetailView,
+    OperatorListCreateView,
     RegisterView,
 )
 
@@ -18,4 +20,7 @@ urlpatterns = [
         "change-password/", ChangePasswordView.as_view(), name="users-change-password"
     ),
     path("my-invitations/", MyInvitationsView.as_view(), name="users-my-invitations"),
+    # Operadores
+    path("operators/", OperatorListCreateView.as_view(), name="users-operators"),
+    path("operators/<uuid:pk>/", OperatorDetailView.as_view(), name="users-operator-detail"),
 ]

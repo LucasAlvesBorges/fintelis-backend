@@ -1,0 +1,420 @@
+# Tipos de Usuário e Gerenciamento de Operadores
+
+Documentação sobre os tipos de usuário no sistema e as APIs para gerenciar operadores.
+
+---
+
+## Tipos de Usuário
+
+O sistema possui dois tipos de usuários:
+
+### 1. Usuário da Plataforma (`plataforma`)
+
+**Características:**
+- ✅ Possui login e senha
+- ✅ Pode fazer login na plataforma
+- ✅ Pode ser associado a memberships (empresas)
+- ✅ Pode receber convites para empresas
+- ✅ Email obrigatório e único
+- ✅ Senha obrigatória
+- ✅ Pode trocar senha
+- ✅ Pode ser admin, staff ou superuser
+
+**Uso:**
+- Usuários que acessam a plataforma
+- Membros de empresas
+- Administradores do sistema
+
+**Criação:**
+- Via registro (`POST /api/v1/users/register/`)
+- Via convite de membership (cria usuário com senha temporária)
+- Via criação direta de membership com `new_user`
+
+### 2. Usuário Operador (`operador`)
+
+**Características:**
+- ❌ **NÃO possui login**
+- ❌ **NÃO pode fazer login na plataforma**
+- ❌ **NÃO possui senha** (senha "unusable")
+- ❌ **NÃO pode ser associado a memberships**
+- ✅ Apenas `first_name` e `last_name` obrigatórios
+- ✅ Email gerado automaticamente (placeholder único)
+- ✅ Associado a uma empresa específica (`operator_company`)
+- ✅ Usado para histórico de vendas em caixas/PDV
+
+**Uso:**
+- Operadores de caixa/PDV
+- Vendedores
+- Funcionários que realizam vendas mas não acessam a plataforma
+- Histórico de transações de vendas
+
+**Criação:**
+- Via API de operadores (`POST /api/v1/users/operators/`)
+
+---
+
+## APIs de Gerenciamento de Operadores
+
+### 1. GET /api/v1/users/operators/
+
+**Descrição:** Lista todos os operadores da empresa ativa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Query Parameters:**
+- `page` (opcional, Integer): Número da página (padrão: 1)
+- `page_size` (opcional, Integer): Itens por página (padrão: 10, máximo: 50)
+
+**Resposta JSON:**
+```json
+{
+    "count": 2,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": "cdf1cb96-b938-4579-b90d-634fa899b031",
+            "first_name": "João",
+            "last_name": "Operador",
+            "full_name": "João Operador",
+            "is_active": true,
+            "created_at": "2025-12-02T02:34:40.154851-03:00"
+        },
+        {
+            "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "first_name": "Maria",
+            "last_name": "Vendedora",
+            "full_name": "Maria Vendedora",
+            "is_active": true,
+            "created_at": "2025-12-01T10:20:30.123456-03:00"
+        }
+    ]
+}
+```
+
+**Campos:**
+- `id` (UUID): Identificador único do operador
+- `first_name` (String): Primeiro nome
+- `last_name` (String): Último nome
+- `full_name` (String): Nome completo (read-only, calculado)
+- `is_active` (Boolean): Indica se o operador está ativo
+- `created_at` (ISO DateTime): Data de criação
+
+**Ordenação:**
+- Ordenados por `first_name` e `last_name` (ordem alfabética)
+
+**Filtros:**
+- Apenas operadores da empresa ativa são retornados
+- Apenas operadores com `user_type = OPERADOR` são retornados
+
+---
+
+### 2. POST /api/v1/users/operators/
+
+**Descrição:** Cria um novo operador para a empresa ativa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Body JSON:**
+```json
+{
+    "first_name": "João",
+    "last_name": "Operador"
+}
+```
+
+**Campos Obrigatórios:**
+- `first_name` (String): Primeiro nome do operador
+  - Apenas letras e espaços (sem números ou caracteres especiais)
+  - Mínimo: 1 caractere
+  - Máximo: 150 caracteres
+- `last_name` (String): Último nome do operador
+  - Apenas letras e espaços (sem números ou caracteres especiais)
+  - Mínimo: 1 caractere
+  - Máximo: 150 caracteres
+
+**Resposta JSON (201 Created):**
+```json
+{
+    "id": "cdf1cb96-b938-4579-b90d-634fa899b031",
+    "first_name": "João",
+    "last_name": "Operador",
+    "user_type": "operador",
+    "is_active": true,
+    "created_at": "2025-12-02T02:34:40.154851-03:00",
+    "updated_at": "2025-12-02T02:34:40.155098-03:00"
+}
+```
+
+**Campos da Resposta:**
+- `id` (UUID): Identificador único do operador criado
+- `first_name` (String): Primeiro nome
+- `last_name` (String): Último nome
+- `user_type` (String): Sempre `"operador"` (read-only)
+- `is_active` (Boolean): Sempre `true` para novos operadores
+- `created_at` (ISO DateTime): Data de criação
+- `updated_at` (ISO DateTime): Data de última atualização
+
+**Validações:**
+- `first_name` e `last_name` são obrigatórios
+- Apenas letras e espaços são permitidos (sem números ou caracteres especiais)
+- Espaços múltiplos são normalizados para um único espaço
+- O operador é automaticamente associado à empresa ativa
+
+**Comportamento:**
+- Email é gerado automaticamente no formato `operador_{uuid}@operador.local`
+- Senha é definida como "unusable" (não pode fazer login)
+- `user_type` é automaticamente definido como `OPERADOR`
+- `operator_company` é automaticamente definido como a empresa ativa
+
+**Exemplo de Requisição:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/users/operators/" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "first_name": "João",
+    "last_name": "Operador"
+  }'
+```
+
+---
+
+### 3. GET /api/v1/users/operators/{id}/
+
+**Descrição:** Retorna detalhes de um operador específico da empresa ativa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do operador
+
+**Resposta JSON (200 OK):**
+```json
+{
+    "id": "cdf1cb96-b938-4579-b90d-634fa899b031",
+    "first_name": "João",
+    "last_name": "Operador",
+    "user_type": "operador",
+    "is_active": true,
+    "created_at": "2025-12-02T02:34:40.154851-03:00",
+    "updated_at": "2025-12-02T02:34:40.155098-03:00"
+}
+```
+
+**Campos:**
+- Mesmos campos da criação (veja POST acima)
+
+**Erros:**
+- `404 Not Found`: Operador não encontrado ou não pertence à empresa ativa
+
+---
+
+### 4. PUT /api/v1/users/operators/{id}/
+
+**Descrição:** Atualiza completamente um operador da empresa ativa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do operador
+
+**Body JSON:**
+```json
+{
+    "first_name": "João",
+    "last_name": "Silva"
+}
+```
+
+**Campos:**
+- `first_name` (String): Primeiro nome (obrigatório)
+- `last_name` (String): Último nome (obrigatório)
+- `is_active` (Boolean): Status ativo/inativo (opcional)
+
+**Resposta JSON (200 OK):**
+```json
+{
+    "id": "cdf1cb96-b938-4579-b90d-634fa899b031",
+    "first_name": "João",
+    "last_name": "Silva",
+    "user_type": "operador",
+    "is_active": true,
+    "created_at": "2025-12-02T02:34:40.154851-03:00",
+    "updated_at": "2025-12-02T02:35:15.123456-03:00"
+}
+```
+
+**Validações:**
+- Mesmas validações do POST
+- `user_type` não pode ser alterado (read-only)
+- `operator_company` não pode ser alterado (read-only)
+
+---
+
+### 5. PATCH /api/v1/users/operators/{id}/
+
+**Descrição:** Atualiza parcialmente um operador da empresa ativa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do operador
+
+**Body JSON:**
+```json
+{
+    "is_active": false
+}
+```
+
+**Campos:**
+- Qualquer campo pode ser atualizado parcialmente
+- `first_name` (String, opcional)
+- `last_name` (String, opcional)
+- `is_active` (Boolean, opcional)
+
+**Resposta JSON (200 OK):**
+```json
+{
+    "id": "cdf1cb96-b938-4579-b90d-634fa899b031",
+    "first_name": "João",
+    "last_name": "Operador",
+    "user_type": "operador",
+    "is_active": false,
+    "created_at": "2025-12-02T02:34:40.154851-03:00",
+    "updated_at": "2025-12-02T02:36:20.789012-03:00"
+}
+```
+
+---
+
+### 6. DELETE /api/v1/users/operators/{id}/
+
+**Descrição:** Remove um operador da empresa ativa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do operador
+
+**Resposta:**
+- `204 No Content`: Operador removido com sucesso
+
+**Nota:**
+- A remoção é permanente
+- Transações associadas ao operador não são removidas (apenas o relacionamento é mantido)
+
+---
+
+## Comparação: Usuário da Plataforma vs Operador
+
+| Característica | Usuário da Plataforma | Operador |
+|----------------|----------------------|----------|
+| **Login** | ✅ Sim | ❌ Não |
+| **Senha** | ✅ Obrigatória | ❌ Não tem |
+| **Email** | ✅ Obrigatório (único) | ❌ Gerado automaticamente |
+| **Membership** | ✅ Pode ter | ❌ Não pode ter |
+| **Convites** | ✅ Pode receber | ❌ Não pode receber |
+| **Campos obrigatórios** | email, first_name, last_name, password | first_name, last_name |
+| **Associação a empresa** | Via Membership | Via operator_company |
+| **Uso** | Acesso à plataforma | Histórico de vendas |
+| **Criação** | Register, Invite, Membership | API de Operadores |
+
+---
+
+## Validações e Regras
+
+### Validação de Nome
+- Apenas letras e espaços são permitidos
+- Não permite números ou caracteres especiais
+- Espaços múltiplos são normalizados para um único espaço
+- Regex: `^[A-Za-zÀ-ÖØ-öø-ÿ]+(?: [A-Za-zÀ-ÖØ-öø-ÿ]+)*$`
+
+### Validação de Login
+- Apenas usuários do tipo `PLATAFORMA` podem fazer login
+- Operadores não podem fazer login mesmo que tentem
+- O `LoginSerializer` valida o `user_type` antes de permitir login
+
+### Segurança
+- Operadores não têm senha utilizável (`has_usable_password = False`)
+- Email de operadores é gerado automaticamente e não é único globalmente
+- Operadores são isolados por empresa (`operator_company`)
+
+---
+
+## Códigos de Status HTTP
+
+### Sucesso
+- `200 OK`: Requisição bem-sucedida (GET, PUT, PATCH)
+- `201 Created`: Recurso criado com sucesso (POST)
+- `204 No Content`: Recurso removido com sucesso (DELETE)
+
+### Erros
+- `400 Bad Request`: Dados inválidos ou validação falhou
+- `401 Unauthorized`: Token de autenticação inválido ou ausente
+- `403 Forbidden`: Operador não pertence à empresa ativa
+- `404 Not Found`: Operador não encontrado
+
+---
+
+## Exemplos de Uso
+
+### Criar um operador
+```bash
+POST /api/v1/users/operators/
+{
+    "first_name": "João",
+    "last_name": "Operador"
+}
+```
+
+### Listar todos os operadores
+```bash
+GET /api/v1/users/operators/
+```
+
+### Buscar um operador específico
+```bash
+GET /api/v1/users/operators/{id}/
+```
+
+### Atualizar nome do operador
+```bash
+PATCH /api/v1/users/operators/{id}/
+{
+    "first_name": "João",
+    "last_name": "Silva"
+}
+```
+
+### Desativar um operador
+```bash
+PATCH /api/v1/users/operators/{id}/
+{
+    "is_active": false
+}
+```
+
+### Remover um operador
+```bash
+DELETE /api/v1/users/operators/{id}/
+```
+
+---
+
+## Notas Importantes
+
+1. **Isolamento por Empresa**: Operadores são isolados por empresa. Cada empresa vê apenas seus próprios operadores.
+
+2. **Email Automático**: O email do operador é gerado automaticamente no formato `operador_{uuid}@operador.local` e não é usado para login.
+
+3. **Sem Login**: Operadores não podem fazer login na plataforma. Eles são usados apenas para histórico de vendas em caixas/PDV.
+
+4. **Associação Futura**: Operadores podem ser associados a vendas em caixas/PDV no futuro, permitindo rastrear qual operador realizou cada venda.
+
+5. **Remoção**: Ao remover um operador, as transações associadas não são removidas, apenas o relacionamento é mantido para histórico.
+
+6. **Paginação**: A listagem de operadores usa paginação padrão do DRF (10 itens por página, máximo 50).
+

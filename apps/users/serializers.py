@@ -10,10 +10,14 @@ from .models import User, name_validator
 class UserAuthenticationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("first_name", "last_name", "must_change_password")
+        fields = ("first_name", "last_name", "must_change_password", "user_type")
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    """
+    Serializer para registro de usuários da plataforma.
+    Apenas usuários do tipo PLATAFORMA podem se registrar via este endpoint.
+    """
     password = serializers.CharField(write_only=True, min_length=8)
     phone_number = serializers.CharField(required=False, allow_blank=True)
     first_name = serializers.CharField(validators=[name_validator])
@@ -25,6 +29,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+        # Força o tipo de usuário como PLATAFORMA para registro
+        validated_data["user_type"] = User.UserType.PLATAFORMA
         user = User.objects.create_user(password=password, **validated_data)
         return user
 
@@ -36,20 +42,29 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class MembershipUserCreateSerializer(RegisterSerializer):
+    """
+    Serializer para criação de usuários via convite de membership.
+    Cria usuários do tipo PLATAFORMA com senha temporária.
+    """
     password = serializers.CharField(write_only=True, min_length=4)
 
     class Meta(RegisterSerializer.Meta):
         fields = RegisterSerializer.Meta.fields
 
     def create(self, validated_data):
+        # Força o tipo de usuário como PLATAFORMA para convites
+        validated_data["user_type"] = User.UserType.PLATAFORMA
         user = super().create(validated_data)
         user.must_change_password = True
-
         user.save(update_fields=["must_change_password"])
         return user
 
 
 class LoginSerializer(serializers.Serializer):
+    """
+    Serializer para login de usuários da plataforma.
+    Apenas usuários do tipo PLATAFORMA podem fazer login.
+    """
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
@@ -60,7 +75,13 @@ class LoginSerializer(serializers.Serializer):
 
         user = authenticate(request=request, username=email, password=password)
         if not user:
-            raise serializers.ValidationError("Invalid credentials.")
+            raise serializers.ValidationError("Credenciais inválidas.")
+        
+        # Verifica se o usuário é do tipo PLATAFORMA
+        if user.user_type != User.UserType.PLATAFORMA:
+            raise serializers.ValidationError(
+                "Este tipo de usuário não pode fazer login na plataforma."
+            )
 
         attrs["user"] = user
         refresh = RefreshToken.for_user(user)
@@ -117,3 +138,50 @@ class PasswordChangeSerializer(serializers.Serializer):
         user.must_change_password = False
         user.save(update_fields=["password", "must_change_password"])
         return user
+
+
+class OperatorSerializer(serializers.ModelSerializer):
+    """
+    Serializer para criação e listagem de usuários operadores.
+    Operadores não têm login, apenas first_name e last_name são obrigatórios.
+    São usados para histórico de vendas em caixas/PDV.
+    """
+    first_name = serializers.CharField(validators=[name_validator])
+    last_name = serializers.CharField(validators=[name_validator])
+
+    class Meta:
+        model = User
+        fields = ("id", "first_name", "last_name", "user_type", "is_active", "created_at", "updated_at")
+        read_only_fields = ("id", "user_type", "created_at", "updated_at")
+
+    def validate_first_name(self, value):
+        return " ".join(value.split())
+
+    def validate_last_name(self, value):
+        return " ".join(value.split())
+
+    def create(self, validated_data):
+        company = self.context.get("company")
+        if not company:
+            raise serializers.ValidationError(
+                {"company": "Empresa ativa é obrigatória para criar operadores."}
+            )
+        
+        user = User.objects.create_operator(
+            first_name=validated_data["first_name"],
+            last_name=validated_data["last_name"],
+            company=company,
+        )
+        return user
+
+
+class OperatorListSerializer(serializers.ModelSerializer):
+    """
+    Serializer para listagem de operadores com informações resumidas.
+    """
+    full_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "first_name", "last_name", "full_name", "is_active", "created_at")
+        read_only_fields = fields
