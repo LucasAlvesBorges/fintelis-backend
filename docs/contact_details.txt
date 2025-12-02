@@ -4,6 +4,50 @@ Documentação do endpoint de detalhes de contatos (fornecedores/clientes), incl
 
 ---
 
+## POST /api/v1/contacts/ (Criar fornecedor)
+
+**Descrição:** Cria um novo fornecedor vinculado à empresa ativa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Body (JSON):**
+- `name` (String, obrigatório): Razão social ou nome do fornecedor
+- `fantasy_name` (String|null, opcional): Nome fantasia
+- `tax_id` (String|null, opcional): CNPJ/CPF (único por empresa)
+- `email` (String|null, opcional): Email de contato
+- `phone` (String|null, opcional): Telefone de contato
+- `type` (String, obrigatório): Tipo do contato — usar `fornecedor` para criação de fornecedor
+
+**Exemplo de requisição:**
+```json
+{
+    "name": "Fornecedor Exemplo ME",
+    "fantasy_name": "Fornecedor Exemplo",
+    "tax_id": "98765432000111",
+    "email": "fornecedor@example.com",
+    "phone": "11888888888",
+    "type": "fornecedor"
+}
+```
+
+**Resposta JSON (201 Created):**
+```json
+{
+    "id": "c081a2d2-3dbb-4cf1-b662-32ce1d4c6540",
+    "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+    "name": "Fornecedor Exemplo ME",
+    "fantasy_name": "Fornecedor Exemplo",
+    "tax_id": "98765432000111",
+    "email": "fornecedor@example.com",
+    "phone": "11888888888",
+    "type": "fornecedor",
+    "created_at": "2025-11-28T12:18:52.548541-03:00",
+    "updated_at": "2025-11-28T12:18:52.548550-03:00"
+}
+```
+
+---
+
 ## GET /api/v1/contacts/{id}/details/
 
 **Descrição:** Retorna detalhes completos de um fornecedor/cliente, incluindo histórico de transações, bills, incomes e contas recorrentes associadas.
@@ -261,4 +305,3 @@ GET /api/v1/contacts/{id}/details/?transactions_page=1&bills_page=1&incomes_page
 - Cada tipo de dado (transactions, bills, incomes, recurring_bills, recurring_incomes) tem sua própria paginação independente
 - O resumo sempre considera todas as transações, bills e incomes do contato, independente da paginação
 - Recurring bills e recurring incomes são buscadas através das transações relacionadas, pois não há relacionamento direto com Contact
-
