@@ -345,7 +345,8 @@ class Transaction(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         with db_transaction.atomic():
-            if self._state.adding and self.order is None:
+            is_new = self._state.adding
+            if is_new and self.order is None:
                 self.order = self._get_next_order()
             previous = None
             if self.pk:
@@ -467,10 +468,17 @@ class Transaction(TimeStampedModel):
 
     def _sync_bank_account_balance(self, previous: "Transaction | None"):
         if previous:
+            # Se está editando, reverter o saldo anterior e aplicar o novo
             self._update_bank_account_balance(
                 previous.bank_account_id,
                 -self._compute_balance_delta(previous.type, previous.amount),
             )
+            self._update_bank_account_balance(
+                self.bank_account_id,
+                self._compute_balance_delta(self.type, self.amount),
+            )
+        else:
+            # Se é uma nova transação, apenas atualizar o saldo
             self._update_bank_account_balance(
                 self.bank_account_id,
                 self._compute_balance_delta(self.type, self.amount),

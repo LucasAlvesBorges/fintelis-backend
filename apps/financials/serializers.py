@@ -1,5 +1,6 @@
 import calendar
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
@@ -133,6 +134,9 @@ class BankAccountSerializer(CompanyScopedModelSerializer):
 
 class CashRegisterSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("default_bank_account",)
+    default_bank_account_name = serializers.CharField(
+        source="default_bank_account.name", read_only=True
+    )
 
     class Meta:
         model = CashRegister
@@ -141,10 +145,11 @@ class CashRegisterSerializer(CompanyScopedModelSerializer):
             "company",
             "name",
             "default_bank_account",
+            "default_bank_account_name",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "company", "created_at", "updated_at")
+        read_only_fields = ("id", "company", "default_bank_account_name", "created_at", "updated_at")
 
 
 class CategorySerializer(CompanyScopedModelSerializer):
@@ -588,6 +593,55 @@ class BillPaymentSerializer(CompanyScopedSerializer):
     description = serializers.CharField(
         required=False, allow_blank=True, allow_null=True
     )
+
+
+class BankAccountWithdrawSerializer(CompanyScopedSerializer):
+    company_filtered_fields = ("category",)
+
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    description = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(), required=False, allow_null=True
+    )
+    transaction_date = serializers.DateField(required=False)
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("amount deve ser positivo.")
+        return value
+
+
+class BankAccountTransferSerializer(CompanyScopedSerializer):
+    company_filtered_fields = ("to_bank_account",)
+
+    to_bank_account = serializers.PrimaryKeyRelatedField(
+        queryset=BankAccount.objects.all()
+    )
+    amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    deduction_percentage = serializers.DecimalField(
+        max_digits=5, decimal_places=2, required=False, allow_null=True, default=0
+    )
+    transaction_date = serializers.DateField()
+    description = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs["amount"] <= 0:
+            raise serializers.ValidationError(
+                {"amount": "Amount must be greater than zero."}
+            )
+        deduction_percentage = attrs.get("deduction_percentage") or Decimal("0")
+        if deduction_percentage < 0 or deduction_percentage > 100:
+            raise serializers.ValidationError(
+                {
+                    "deduction_percentage": "Deduction percentage must be between 0 and 100."
+                }
+            )
+        return attrs
 
 
 class IncomePaymentSerializer(CompanyScopedSerializer):

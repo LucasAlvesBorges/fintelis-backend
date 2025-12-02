@@ -1,0 +1,505 @@
+# Gerenciamento de Contas Bancárias
+
+Documentação dos endpoints para gerenciar contas bancárias, incluindo visualização de detalhes, retirada de saldo e transferências entre contas.
+
+---
+
+## 1. GET /api/v1/financials/bank-accounts/{id}/details/
+
+**Descrição:** Retorna detalhes completos de uma conta bancária, incluindo histórico de transações, contas a receber e a pagar, além de estatísticas e resumo financeiro.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID da conta bancária
+
+**Query Parameters:**
+- `transactions_page` (opcional, Integer): Número da página para transações (padrão: 1)
+- `transactions_type` (opcional, String): Filtro por tipo de transação. Valores aceitos:
+  - `receita`: Apenas transações de receita
+  - `despesa`: Apenas transações de despesa
+  - Se não fornecido: retorna todos os tipos de transações
+- `incomes_page` (opcional, Integer): Número da página para contas a receber (padrão: 1)
+- `bills_page` (opcional, Integer): Número da página para contas a pagar (padrão: 1)
+
+**Nota:** 
+- Cada lista (transactions, incomes, bills) tem paginação independente de 5 itens por página.
+- O filtro `transactions_type` afeta apenas a lista de transações retornada, mas **não** afeta os totais do `summary` (que sempre mostram todos os valores).
+
+**Resposta JSON:**
+```json
+{
+    "account": {
+        "id": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "bank": "16f5a864-ff56-4200-8467-021bac4b7a1f",
+        "bank_details": {
+            "id": "16f5a864-ff56-4200-8467-021bac4b7a1f",
+            "code": "001",
+            "name": "Banco do Brasil S.A.",
+            "cnpj": null,
+            "logo": "http://localhost:8000/media/bank_logos/001.svg",
+            "is_active": true,
+            "created_at": "2025-11-28T12:13:54.518652-03:00",
+            "updated_at": "2025-11-28T12:13:54.523163-03:00"
+        },
+        "name": "Conta Principal",
+        "description": null,
+        "type": "conta_corrente",
+        "initial_balance": "10000.00",
+        "current_balance": "20500.00",
+        "created_at": "2025-11-28T12:18:52.509060-03:00",
+        "updated_at": "2025-11-28T12:18:52.509074-03:00"
+    },
+    "summary": {
+        "current_balance": 20500.0,
+        "initial_balance": 10000.0,
+        "total_receitas": 28000.0,
+        "total_despesas": 13600.0,
+        "total_transferencias_recebidas": 0.0,
+        "total_transferencias_enviadas": 1000.0,
+        "incomes_pendentes": 6,
+        "bills_pendentes": 5
+    },
+    "transactions": {
+        "items": [
+            {
+                "id": "a3c62f2b-c665-4952-b7ce-8decfe8717c3",
+                "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+                "company_name": "Startec Serviços e Tecnologia",
+                "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+                "bank_account_name": "Conta Principal",
+                "category": "c287be9e-6725-46fc-86c7-31d114e6f877",
+                "category_name": "Gasolina Mobi",
+                "cash_register": null,
+                "cash_register_name": null,
+                "contact": null,
+                "contact_name": null,
+                "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+                "cost_center_name": "Administracao",
+                "payment_method": "c32ebfed-fe56-4f84-98e3-5580c14e1241",
+                "payment_method_name": "Pix",
+                "order": 9,
+                "order_code": "#09",
+                "related_transaction": null,
+                "linked_transaction": null,
+                "description": "Abastecimento",
+                "amount": "100.00",
+                "type": "despesa",
+                "transaction_date": "2025-12-01",
+                "created_at": "2025-12-01T13:22:15.997112-03:00",
+                "updated_at": "2025-12-01T13:22:15.997125-03:00"
+            }
+        ],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 4,
+            "total_items": 16,
+            "has_next": true,
+            "has_previous": false
+        }
+    },
+    "incomes": {
+        "items": [
+            {
+                "id": "...",
+                "company": "...",
+                "company_name": "...",
+                "category": "...",
+                "category_name": "...",
+                "contact": "...",
+                "contact_name": "...",
+                "cost_center": "...",
+                "cost_center_name": "...",
+                "order": null,
+                "order_code": null,
+                "payment_transaction": "...",
+                "description": "...",
+                "amount": "...",
+                "due_date": "...",
+                "status": "recebido",
+                "created_at": "...",
+                "updated_at": "..."
+            }
+        ],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 2,
+            "total_items": 8,
+            "has_next": true,
+            "has_previous": false
+        }
+    },
+    "bills": {
+        "items": [
+            {
+                "id": "...",
+                "company": "...",
+                "company_name": "...",
+                "category": "...",
+                "category_name": "...",
+                "contact": "...",
+                "contact_name": "...",
+                "cost_center": "...",
+                "cost_center_name": "...",
+                "order": null,
+                "order_code": null,
+                "payment_transaction": "...",
+                "description": "...",
+                "amount": "...",
+                "due_date": "...",
+                "status": "quitada",
+                "created_at": "...",
+                "updated_at": "..."
+            }
+        ],
+        "pagination": {
+            "page": 1,
+            "page_size": 5,
+            "total_pages": 1,
+            "total_items": 3,
+            "has_next": false,
+            "has_previous": false
+        }
+    }
+}
+```
+
+**Campos do Summary:**
+- `current_balance`: Saldo atual da conta (Decimal)
+- `initial_balance`: Saldo inicial da conta (Decimal)
+- `total_receitas`: Soma de todas as receitas registradas nesta conta (Decimal)
+- `total_despesas`: Soma de todas as despesas e transferências externas (Decimal)
+- `total_transferencias_recebidas`: Soma de transferências recebidas (Decimal)
+- `total_transferencias_enviadas`: Soma de transferências enviadas (Decimal)
+- `incomes_pendentes`: Contagem de contas a receber pendentes (não pagas) da empresa
+- `bills_pendentes`: Contagem de contas a pagar pendentes (não pagas) da empresa
+
+**Paginação:**
+- Cada lista (`transactions`, `incomes`, `bills`) tem paginação independente
+- **Tamanho da página:** 5 itens por página (fixo)
+- **Estrutura de paginação:**
+  - `page`: Número da página atual
+  - `page_size`: Tamanho da página (sempre 5)
+  - `total_pages`: Total de páginas disponíveis
+  - `total_items`: Total de itens na lista
+  - `has_next`: Indica se há próxima página
+  - `has_previous`: Indica se há página anterior
+
+**Ordenação:**
+- `transactions`: Ordenadas pela última transação que ocorreu (`-created_at`, `-transaction_date`, `-id`) - as mais recentes aparecem primeiro
+- `incomes`: Ordenadas por data de vencimento decrescente (`-due_date`, `-id`)
+- `bills`: Ordenadas por data de vencimento decrescente (`-due_date`, `-id`)
+
+**Status HTTP:**
+- `200 OK`: Sucesso
+- `404 Not Found`: Conta bancária não encontrada
+- `403 Forbidden`: Usuário não tem permissão para acessar esta conta
+
+---
+
+## 2. POST /api/v1/financials/bank-accounts/{id}/withdraw/
+
+**Descrição:** Cria uma transação de retirada de saldo da conta bancária (ex: retirada de dividendos, saque, etc.). A transação é criada como uma despesa.
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID da conta bancária de origem
+
+**Body JSON:**
+```json
+{
+    "amount": "500.00",
+    "description": "Retirada de dividendos",
+    "category": "c287be9e-6725-46fc-86c7-31d114e6f877",
+    "transaction_date": "2025-12-02"
+}
+```
+
+**Campos:**
+- `amount` (obrigatório, Decimal): Valor a retirar (deve ser maior que zero)
+- `description` (opcional, String): Descrição da retirada (padrão: "Retirada")
+- `category` (opcional, UUID): ID da categoria da despesa
+- `transaction_date` (opcional, Date): Data da transação (padrão: data atual)
+
+**Resposta JSON (201 Created):**
+```json
+{
+    "id": "8ff96de9-a5d1-452c-b7c4-ddbda1c68fcb",
+    "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+    "company_name": "Startec Serviços e Tecnologia",
+    "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+    "bank_account_name": "Conta Principal",
+    "category": null,
+    "category_name": null,
+    "cash_register": null,
+    "cash_register_name": null,
+    "contact": null,
+    "contact_name": null,
+    "cost_center": null,
+    "cost_center_name": null,
+    "payment_method": null,
+    "payment_method_name": null,
+    "order": 10,
+    "order_code": "#10",
+    "related_transaction": null,
+    "linked_transaction": null,
+    "description": "Retirada de dividendos",
+    "amount": "500.00",
+    "type": "despesa",
+    "transaction_date": "2025-12-02",
+    "created_at": "2025-12-02T00:44:39.885430-03:00",
+    "updated_at": "2025-12-02T00:44:39.885439-03:00"
+}
+```
+
+**Comportamento:**
+- Cria uma transação do tipo `despesa`
+- Atualiza automaticamente o saldo da conta (`current_balance`)
+- A transação é vinculada à conta bancária especificada
+- O campo `order` é gerado automaticamente se houver outras transações com ordem
+
+**Status HTTP:**
+- `201 Created`: Retirada criada com sucesso
+- `400 Bad Request`: Dados inválidos (ex: amount <= 0)
+- `404 Not Found`: Conta bancária não encontrada
+- `403 Forbidden`: Usuário não tem permissão para acessar esta conta
+
+**Validações:**
+- `amount` deve ser maior que zero
+- `category` deve pertencer à mesma empresa (se fornecida)
+- `transaction_date` deve ser uma data válida (se fornecida)
+
+---
+
+## 3. POST /api/v1/financials/bank-accounts/{id}/transfer/
+
+**Descrição:** Transfere saldo de uma conta bancária para outra. Cria duas transações vinculadas: uma de saída (transferencia_externa) na conta de origem e uma de entrada (transferencia_interna) na conta de destino. Suporta dedução percentual do valor transferido (ex: taxa de transferência).
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+**Parâmetros de URL:**
+- `id` (UUID): ID da conta bancária de origem
+
+**Body JSON:**
+```json
+{
+    "to_bank_account": "39209545-1138-483e-8658-677d70ced769",
+    "amount": "1000.00",
+    "deduction_percentage": "10.00",
+    "description": "Transferência para Nubank",
+    "transaction_date": "2025-12-02"
+}
+```
+
+**Campos:**
+- `to_bank_account` (obrigatório, UUID): ID da conta bancária de destino
+- `amount` (obrigatório, Decimal): Valor original a transferir (deve ser maior que zero)
+- `deduction_percentage` (opcional, Decimal): Porcentagem de dedução do valor original (0-100, padrão: 0)
+- `description` (opcional, String): Descrição da transferência (padrão: "Transferência entre contas")
+- `transaction_date` (obrigatório, Date): Data da transação
+
+**Exemplo de cálculo com dedução:**
+- Valor original: R$ 1.000,00
+- Dedução: 10%
+- Valor deduzido: R$ 100,00
+- Valor que entra na conta de destino: R$ 900,00
+- Valor que sai da conta de origem: R$ 1.000,00 (valor original)
+
+**Resposta JSON (201 Created):**
+```json
+[
+    {
+        "id": "6c0565b0-7ae2-4199-9f34-c323ca392391",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+        "bank_account_name": "Conta Principal",
+        "category": null,
+        "category_name": null,
+        "cash_register": null,
+        "cash_register_name": null,
+        "contact": null,
+        "contact_name": null,
+        "cost_center": null,
+        "cost_center_name": null,
+        "payment_method": null,
+        "payment_method_name": null,
+        "order": 11,
+        "order_code": "#11",
+        "related_transaction": null,
+        "linked_transaction": "121ec640-8f13-4ce4-9cd1-a8ab2867c717",
+        "description": "Saída: Transferência para Nubank (Dedução: 10.00% = 100.00)",
+        "amount": "1000.00",
+        "type": "transferencia_externa",
+        "transaction_date": "2025-12-02",
+        "created_at": "2025-12-02T00:44:56.152992-03:00",
+        "updated_at": "2025-12-02T00:44:56.163448-03:00"
+    },
+    {
+        "id": "121ec640-8f13-4ce4-9cd1-a8ab2867c717",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "39209545-1138-483e-8658-677d70ced769",
+        "bank_account_name": "Nubank",
+        "category": null,
+        "category_name": null,
+        "cash_register": null,
+        "cash_register_name": null,
+        "contact": null,
+        "contact_name": null,
+        "cost_center": null,
+        "cost_center_name": null,
+        "payment_method": null,
+        "payment_method_name": null,
+        "order": 12,
+        "order_code": "#12",
+        "related_transaction": null,
+        "linked_transaction": "6c0565b0-7ae2-4199-9f34-c323ca392391",
+        "description": "Entrada: Transferência para Nubank (Valor líquido após dedução de 10.00%)",
+        "amount": "900.00",
+        "type": "transferencia_interna",
+        "transaction_date": "2025-12-02",
+        "created_at": "2025-12-02T00:44:56.159007-03:00",
+        "updated_at": "2025-12-02T00:44:56.159018-03:00"
+    }
+]
+```
+
+**Comportamento:**
+- Cria duas transações vinculadas atomicamente (em uma transação de banco de dados)
+- **Transação de saída** (`transferencia_externa`): na conta de origem
+  - Valor: valor original (`amount`)
+  - Descrição: "Saída: {description}" (se houver dedução, inclui: "Saída: {description} (Dedução: {percentage}% = {valor})")
+- **Transação de entrada** (`transferencia_interna`): na conta de destino
+  - Valor: valor após dedução (`amount - (amount * deduction_percentage / 100)`)
+  - Descrição: "Entrada: {description}" (se houver dedução, inclui: "Entrada: {description} (Valor líquido após dedução de {percentage}%)")
+- As transações são vinculadas através do campo `linked_transaction`
+- Atualiza automaticamente os saldos de ambas as contas
+- Transações de transferência não podem ter categoria ou caixa registradora
+
+**Status HTTP:**
+- `201 Created`: Transferência criada com sucesso
+- `400 Bad Request`: Dados inválidos (ex: amount <= 0, contas iguais)
+- `404 Not Found`: Conta bancária não encontrada
+- `403 Forbidden`: Usuário não tem permissão para acessar esta conta
+
+**Validações:**
+- `amount` deve ser maior que zero
+- `deduction_percentage` deve estar entre 0 e 100 (se fornecido)
+- `to_bank_account` deve ser diferente de `from_bank_account` (conta de origem)
+- `to_bank_account` deve pertencer à mesma empresa
+- `transaction_date` deve ser uma data válida
+- Ambas as contas devem pertencer à mesma empresa
+
+**Notas:**
+- A transferência é atômica: se houver erro em qualquer etapa, nenhuma transação é criada
+- O saldo é atualizado automaticamente em ambas as contas
+- As transações são vinculadas bidirecionalmente através de `linked_transaction`
+
+---
+
+## Resumo dos Endpoints
+
+| Endpoint | Método | Descrição | Status de Sucesso |
+|----------|--------|-----------|-------------------|
+| `/bank-accounts/{id}/details/` | GET | Detalhes da conta com histórico e estatísticas | 200 OK |
+| `/bank-accounts/{id}/withdraw/` | POST | Retirada de saldo da conta | 201 Created |
+| `/bank-accounts/{id}/transfer/` | POST | Transferência entre contas bancárias | 201 Created |
+
+---
+
+## Autenticação
+
+Todos os endpoints requerem:
+- **Bearer Token**: Token de acesso do usuário (header `Authorization: Bearer {token}`)
+- **X-Company-Token**: Token de acesso à empresa (header `X-Company-Token: {token}`)
+
+Os tokens podem ser obtidos através dos endpoints de autenticação:
+- `POST /api/v1/users/login/` - Login do usuário
+- `POST /api/v1/users/company-token/` - Obter token da empresa
+
+---
+
+## Exemplos de Uso
+
+### Exemplo 1: Consultar detalhes da conta (primeira página)
+```bash
+curl -X GET \
+  "http://localhost:8000/api/v1/financials/bank-accounts/8d2bd953-a203-4c63-901d-75e9a93ae00a/details/?transactions_page=1&incomes_page=1&bills_page=1" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}"
+```
+
+### Exemplo 1.1: Consultar segunda página de transações
+```bash
+curl -X GET \
+  "http://localhost:8000/api/v1/financials/bank-accounts/8d2bd953-a203-4c63-901d-75e9a93ae00a/details/?transactions_page=2" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}"
+```
+
+### Exemplo 1.2: Filtrar apenas receitas
+```bash
+curl -X GET \
+  "http://localhost:8000/api/v1/financials/bank-accounts/8d2bd953-a203-4c63-901d-75e9a93ae00a/details/?transactions_type=receita&transactions_page=1" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}"
+```
+
+### Exemplo 1.3: Filtrar apenas despesas
+```bash
+curl -X GET \
+  "http://localhost:8000/api/v1/financials/bank-accounts/8d2bd953-a203-4c63-901d-75e9a93ae00a/details/?transactions_type=despesa&transactions_page=1" \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}"
+```
+
+### Exemplo 2: Retirar saldo
+```bash
+curl -X POST \
+  http://localhost:8000/api/v1/financials/bank-accounts/8d2bd953-a203-4c63-901d-75e9a93ae00a/withdraw/ \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": "500.00",
+    "description": "Retirada de dividendos",
+    "transaction_date": "2025-12-02"
+  }'
+```
+
+### Exemplo 3: Transferir entre contas (sem dedução)
+```bash
+curl -X POST \
+  http://localhost:8000/api/v1/financials/bank-accounts/8d2bd953-a203-4c63-901d-75e9a93ae00a/transfer/ \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to_bank_account": "39209545-1138-483e-8658-677d70ced769",
+    "amount": "1000.00",
+    "description": "Transferência para Nubank",
+    "transaction_date": "2025-12-02"
+  }'
+```
+
+### Exemplo 3.1: Transferir entre contas (com dedução de 10%)
+```bash
+curl -X POST \
+  http://localhost:8000/api/v1/financials/bank-accounts/8d2bd953-a203-4c63-901d-75e9a93ae00a/transfer/ \
+  -H "Authorization: Bearer {access_token}" \
+  -H "X-Company-Token: {company_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to_bank_account": "39209545-1138-483e-8658-677d70ced769",
+    "amount": "1000.00",
+    "deduction_percentage": "10.00",
+    "description": "Transferência com dedução",
+    "transaction_date": "2025-12-02"
+  }'
+```
+
