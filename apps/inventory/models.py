@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from django.conf import settings
 from apps.companies.models import Company, TimeStampedModel
 
 
@@ -116,6 +117,13 @@ class InventoryMovement(TimeStampedModel):
     type = models.CharField(max_length=255, choices=MovementType.choices)
     company = models.ForeignKey(
         Company, on_delete=models.CASCADE, related_name="inventory_movements"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_movements",
     )
 
     # Campos para transferências entre inventários

@@ -79,6 +79,18 @@ class InventoryMovementViewSet(CompanyScopedViewSet):
     )
     serializer_class = InventoryMovementSerializer
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        inventory_id = self.request.query_params.get("inventory")
+        if inventory_id:
+            queryset = queryset.filter(stock_item__inventory=inventory_id)
+
+        stock_item_id = self.request.query_params.get("stock_item")
+        if stock_item_id:
+            queryset = queryset.filter(stock_item_id=stock_item_id)
+
+        return queryset
+
     def perform_create(self, serializer):
         company = self.get_active_company()
 
@@ -88,7 +100,7 @@ class InventoryMovementViewSet(CompanyScopedViewSet):
         stock_item.quantity_on_hand += quantity_changed
         stock_item.save()
 
-        serializer.save(company=company)
+        serializer.save(company=company, user=self.request.user)
 
     def perform_update(self, serializer):
         # Ensure company access is checked via get_active_company in parent/mixin,

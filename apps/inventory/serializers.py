@@ -143,6 +143,7 @@ class InventoryMovementSerializer(serializers.ModelSerializer):
     )
     company_name = serializers.CharField(source="company.name", read_only=True)
     type_display = serializers.CharField(source="get_type_display", read_only=True)
+    user_name = serializers.SerializerMethodField()
 
     class Meta:
         model = InventoryMovement
@@ -157,6 +158,8 @@ class InventoryMovementSerializer(serializers.ModelSerializer):
             "type_display",
             "company",
             "company_name",
+            "user",
+            "user_name",
             "created_at",
             "updated_at",
         )
@@ -169,4 +172,13 @@ class InventoryMovementSerializer(serializers.ModelSerializer):
             "company_name",
             "type_display",
             "company",
+            "user",
+            "user_name",
         )
+
+    def get_user_name(self, obj):
+        if obj.user:
+            return getattr(
+                obj.user, "full_name", f"{obj.user.first_name} {obj.user.last_name}"
+            )
+        return None
