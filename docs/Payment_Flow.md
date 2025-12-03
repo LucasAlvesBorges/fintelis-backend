@@ -90,13 +90,12 @@ company.save()
 ### Frontend (`web/src/pages/Payment/Checkout.jsx`)
 
 ```javascript
-// 1. Solicitar criação de pagamento PIX
+// 1. Solicitar criação de pagamento PIX (pagamento único, não precisa de billing_day)
 const response = await subscriptionService.createPixPayment({
   company_id: company.id,
-  plan_id: selectedPlan.id,
-  payer_email: formData.email,
-  billing_day: formData.billingDay,
-  payment_method: 'pix'
+  plan_type: selectedPlan.id,
+  payer_email: formData.email
+  // billing_day não é necessário para PIX (pagamento único)
 })
 
 // 2. Exibir QR Code e código PIX
@@ -126,9 +125,9 @@ def create_pix_payment(self, request):
     Não é recorrente - requer renovação manual.
     """
     company_id = request.data.get('company_id')
-    plan_id = request.data.get('plan_id')
+    plan_type = request.data.get('plan_type')
     payer_email = request.data.get('payer_email')
-    billing_day = request.data.get('billing_day', 10)
+    # billing_day não é necessário para PIX (pagamento único)
     
     company = Company.objects.get(pk=company_id)
     plan = SubscriptionPlan.objects.get(pk=plan_id)
@@ -221,15 +220,25 @@ class MercadoPagoWebhookView(APIView):
 
 ## 4. Campos Necessários
 
-### Ambos os métodos:
-- `company_id` (UUID)
-- `plan_id` (UUID) 
-- `payer_email` (string)
-- `billing_day` (int: 1, 5, 10, 15, 20, 25)
-- `payment_method` (string: 'credit_card' | 'pix')
+### Cartão de Crédito (Recorrente):
+- `company_id` (UUID) ✅
+- `plan_id` (UUID) ✅
+- `payer_email` (string) ✅
+- `billing_day` (int: 1, 5, 10, 15, 20, 25) ✅ **Obrigatório para assinatura recorrente**
+- `card_data` (object) ✅
+  - `card_number` (string)
+  - `cardholder_name` (string)
+  - `expiration_month` (string)
+  - `expiration_year` (string)
+  - `security_code` (string)
+  - `identification_type` (string: 'CPF' | 'CNPJ')
+  - `identification_number` (string)
 
-### Apenas Cartão:
-- `card_token_id` (string) - Token gerado pelo Mercado Pago SDK
+### PIX (Pagamento Único):
+- `company_id` (UUID) ✅
+- `plan_type` (string) ✅
+- `payer_email` (string) ✅
+- `billing_day` ❌ **NÃO necessário** (PIX é pagamento único, não recorrente)
 
 ---
 
