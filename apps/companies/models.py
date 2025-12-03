@@ -21,23 +21,50 @@ def default_trial_end():
 
 
 class Company(TimeStampedModel):
-    class SubscriptionPlan(models.TextChoices):
-        MONTHLY = "monthly", "Mensal (R$500 via Pix)"
-        QUARTERLY = "quarterly", "Trimestral (R$1500 via Pix)"
-        SEMIANNUAL = "semiannual", "Semestral (R$ 3000 via Pix)"
-        ANNUAL = "annual", "Anual (R$6000 via Pix)"
-
+    """
+    Modelo de empresa (multi-tenant).
+    
+    Para informações sobre planos de assinatura, veja apps.payments.models.SubscriptionPlanType
+    """
     name = models.CharField(max_length=255)
     cnpj = models.CharField(max_length=255)
     email = models.EmailField(max_length=255)
-    trial_ends_at = models.DateTimeField(null=True, blank=True)
-    subscription_active = models.BooleanField(default=False)
-    subscription_expires_at = models.DateTimeField(null=True, blank=True)
-    subscription_plan = models.CharField(
-        max_length=20,
-        choices=SubscriptionPlan.choices,
+    
+    # Trial gratuito
+    trial_ends_at = models.DateTimeField(
         null=True,
         blank=True,
+        verbose_name='Trial termina em',
+        help_text='Data de término do período de teste gratuito'
+    )
+    
+    # Assinatura (gerenciada pelo app payments)
+    subscription_active = models.BooleanField(
+        default=False,
+        verbose_name='Assinatura Ativa',
+        help_text='Se a empresa tem assinatura ativa (paga ou em trial)'
+    )
+    subscription_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Assinatura expira em',
+        help_text='Data de expiração da assinatura atual'
+    )
+    subscription_plan = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        verbose_name='Plano de Assinatura',
+        help_text='Tipo do plano atual (monthly, quarterly, etc). Veja SubscriptionPlanType em payments.models'
+    )
+    
+    # Integração Mercado Pago (opcional - usado apenas se houver assinatura via MP)
+    mercadopago_subscription_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name='ID da Assinatura no Mercado Pago',
+        help_text='ID da assinatura ativa no Mercado Pago (preapproval_id)'
     )
 
     class Meta:

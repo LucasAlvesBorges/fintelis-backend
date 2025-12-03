@@ -54,6 +54,7 @@ class MembershipSerializer(serializers.ModelSerializer):
     )
     company_name = serializers.CharField(source="company.name", read_only=True)
     new_user = MembershipUserCreateSerializer(write_only=True, required=False)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
 
     class Meta:
         model = Membership
@@ -65,6 +66,7 @@ class MembershipSerializer(serializers.ModelSerializer):
             "company",
             "company_name",
             "role",
+            "role_display",
             "created_at",
             "updated_at",
         )
@@ -74,6 +76,7 @@ class MembershipSerializer(serializers.ModelSerializer):
             "updated_at",
             "user_details",
             "company_name",
+            "role_display",
         )
         extra_kwargs = {
             "user": {"required": False, "allow_null": True},
@@ -279,9 +282,11 @@ class UserSearchSerializer(serializers.ModelSerializer):
 
 
 class SubscriptionActivationSerializer(serializers.Serializer):
+    from apps.payments.models import SubscriptionPlanType
+    
     start_trial = serializers.BooleanField(required=False, default=False)
     plan = serializers.ChoiceField(
-        choices=Company.SubscriptionPlan.choices,
+        choices=SubscriptionPlanType.choices,
         required=False,
         allow_blank=False,
         allow_null=True,
@@ -308,13 +313,11 @@ class SubscriptionActivationSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Trial já iniciado ou utilizado.")
             return attrs
 
-        plan_durations = {
-            Company.SubscriptionPlan.MONTHLY: timedelta(days=30),
-            Company.SubscriptionPlan.QUARTERLY: timedelta(days=90),
-            Company.SubscriptionPlan.SEMIANNUAL: timedelta(days=180),
-            Company.SubscriptionPlan.ANNUAL: timedelta(days=365),
-        }
-
-        expires_at = timezone.now() + plan_durations[plan]
+        # Usar configuração centralizada de duração dos planos
+        from apps.payments.models import SubscriptionPlanType
+        config = SubscriptionPlanType.get_config(plan)
+        duration_days = config.get('duration_days', 30)
+        
+        expires_at = timezone.now() + timedelta(days=duration_days)
         attrs["subscription_expires_at"] = expires_at
         return attrs

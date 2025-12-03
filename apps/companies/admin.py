@@ -11,13 +11,16 @@ class CompanyAdmin(admin.ModelAdmin):
         "cnpj",
         "email",
         "subscription_active",
+        "subscription_plan",
         "has_active_access",
         "created_at",
-        "updated_at",
     )
-    list_filter = ("subscription_active", "subscription_plan")
+    list_filter = ("subscription_active", "subscription_plan", "created_at")
     search_fields = ("name", "cnpj", "email")
     readonly_fields = ("created_at", "updated_at", "has_active_access")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    
     fieldsets = (
         (None, {"fields": ("name", "cnpj", "email")}),
         (
@@ -28,9 +31,10 @@ class CompanyAdmin(admin.ModelAdmin):
                     "subscription_plan",
                     "subscription_expires_at",
                     "trial_ends_at",
+                    "mercadopago_subscription_id",
                     "has_active_access",
                 ),
-                "description": "Informações sobre assinatura e trial da empresa.",
+                "description": "Subscription and trial information.",
             },
         ),
         ("Audit", {"fields": ("created_at", "updated_at")}),
