@@ -1,5 +1,8 @@
+import hashlib
+import json
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.db import transaction as db_transaction
 from django.db.models import Q, Sum
 from rest_framework import permissions, status, viewsets
@@ -7,9 +10,11 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from django.utils import timezone
 
+from apps.companies.models import CostCenter
 from .mixins import ActiveCompanyMixin
 from .models import (
     Bank,
@@ -19,7 +24,9 @@ from .models import (
     Category,
     Income,
     RecurringBill,
+    RecurringBillPayment,
     RecurringIncome,
+    RecurringIncomeReceipt,
     Transaction,
 )
 from .serializers import (
@@ -33,7 +40,9 @@ from .serializers import (
     IncomePaymentSerializer,
     IncomeSerializer,
     RecurringBillSerializer,
+    RecurringBillPaymentSerializer,
     RecurringIncomeSerializer,
+    RecurringIncomeReceiptSerializer,
     TransactionSerializer,
     TransferSerializer,
     TransactionRefundSerializer,
@@ -717,3 +726,443 @@ class RecurringIncomeViewSet(CompanyScopedViewSet):
         "company", "category", "cost_center"
     )
     serializer_class = RecurringIncomeSerializer
+
+
+class FinancialDataPagination(PageNumberPagination):
+    """Paginação padrão para o endpoint unificado de dados financeiros."""
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+class FinancialDataView(ActiveCompanyMixin, APIView):
+    """
+    Endpoint unificado para visualização de dados financeiros.
+    
+    Combina Income, Bill, RecurringBill, RecurringIncome, 
+    RecurringBillPayment e RecurringIncomeReceipt em uma única API.
+    
+    Query Parameters:
+    -----------------
+    - type (required): Tipo de dado a buscar. Valores aceitos:
+        - incomes: Contas a receber
+        - bills: Contas a pagar
+        - recurring_bills: Contas recorrentes a pagar
+        - recurring_incomes: Contas recorrentes a receber
+        - recurring_bill_payments: Pagamentos de contas recorrentes
+        - recurring_income_receipts: Recebimentos de contas recorrentes
+    
+    - uuid (optional): UUID de um item específico para ver detalhes completos.
+    
+    - page (optional, default=1): Número da página para paginação.
+    
+    - search (optional): Filtro de busca com formato "campo#valor".
+        Exemplos:
+        - category#vendas: Filtra por categoria com nome "vendas"
+        - cost_center#administracao: Filtra por centro de custo "administracao"
+        - status#pendente: Filtra por status "pendente"
+        - description#aluguel: Filtra por descrição contendo "aluguel"
+        
+        Múltiplos filtros podem ser combinados separados por vírgula:
+        - category#vendas,cost_center#marketing
+    
+    - status (optional): Filtro direto por status (pendente, quitada, recebido).
+    
+    - category_id (optional): Filtro por ID da categoria.
+    
+    - cost_center_id (optional): Filtro por ID do centro de custo.
+    
+    - date_from (optional): Data inicial (YYYY-MM-DD) para filtrar por due_date.
+    
+    - date_to (optional): Data final (YYYY-MM-DD) para filtrar por due_date.
+    
+    Response:
+    ---------
+    - Se uuid é fornecido: Retorna detalhes completos do item.
+    - Se uuid não é fornecido: Retorna lista paginada com 10 itens por página.
+    
+    Cache:
+    ------
+    Resultados são cacheados por 60 segundos no Redis para melhorar performance.
+    O cache é invalidado automaticamente quando os parâmetros de busca mudam.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    VALID_TYPES = {
+        "incomes": {
+            "model": Income,
+            "serializer": IncomeSerializer,
+            "select_related": ["company", "category", "contact", "cost_center", "payment_transaction", "payment_transaction__bank_account"],
+            "has_status": True,
+            "status_field": "status",
+        },
+        "bills": {
+            "model": Bill,
+            "serializer": BillSerializer,
+            "select_related": ["company", "category", "contact", "cost_center", "payment_transaction", "payment_transaction__bank_account"],
+            "has_status": True,
+            "status_field": "status",
+        },
+        "recurring_bills": {
+            "model": RecurringBill,
+            "serializer": RecurringBillSerializer,
+            "select_related": ["company", "category", "cost_center"],
+            "has_status": False,
+        },
+        "recurring_incomes": {
+            "model": RecurringIncome,
+            "serializer": RecurringIncomeSerializer,
+            "select_related": ["company", "category", "cost_center"],
+            "has_status": False,
+        },
+        "recurring_bill_payments": {
+            "model": RecurringBillPayment,
+            "serializer": RecurringBillPaymentSerializer,
+            "select_related": ["company", "recurring_bill", "recurring_bill__category", "recurring_bill__cost_center", "transaction", "transaction__bank_account"],
+            "has_status": True,
+            "status_field": "status",
+        },
+        "recurring_income_receipts": {
+            "model": RecurringIncomeReceipt,
+            "serializer": RecurringIncomeReceiptSerializer,
+            "select_related": ["company", "recurring_income", "recurring_income__category", "recurring_income__cost_center", "transaction", "transaction__bank_account"],
+            "has_status": True,
+            "status_field": "status",
+        },
+    }
+    
+    CACHE_TTL = 60  # 60 segundos
+    
+    def _generate_cache_key(self, company_id: str, data_type: str, params: dict) -> str:
+        """Gera uma chave de cache única baseada nos parâmetros."""
+        params_str = json.dumps(params, sort_keys=True, default=str)
+        params_hash = hashlib.md5(params_str.encode()).hexdigest()[:12]
+        return f"financial_data:{company_id}:{data_type}:{params_hash}"
+    
+    def _parse_search_filters(self, search_param: str) -> dict:
+        """
+        Parseia o parâmetro de busca no formato 'campo#valor,campo2#valor2'.
+        
+        Retorna um dicionário com os filtros.
+        """
+        filters = {}
+        if not search_param:
+            return filters
+        
+        for part in search_param.split(","):
+            if "#" not in part:
+                continue
+            field, value = part.split("#", 1)
+            field = field.strip().lower()
+            value = value.strip()
+            
+            if field and value:
+                filters[field] = value
+        
+        return filters
+    
+    def _apply_filters(self, queryset, data_type: str, request):
+        """Aplica filtros ao queryset baseado nos parâmetros da request."""
+        company = self.get_active_company()
+        config = self.VALID_TYPES[data_type]
+        
+        # Filtro por empresa (sempre aplicado)
+        queryset = queryset.filter(company=company)
+        
+        # Filtro por status
+        status_param = request.query_params.get("status")
+        if status_param and config.get("has_status"):
+            queryset = queryset.filter(**{config["status_field"]: status_param})
+        
+        # Filtro por categoria
+        category_id = request.query_params.get("category_id")
+        if category_id:
+            if data_type in ["recurring_bill_payments"]:
+                queryset = queryset.filter(recurring_bill__category_id=category_id)
+            elif data_type in ["recurring_income_receipts"]:
+                queryset = queryset.filter(recurring_income__category_id=category_id)
+            else:
+                queryset = queryset.filter(category_id=category_id)
+        
+        # Filtro por centro de custo
+        cost_center_id = request.query_params.get("cost_center_id")
+        if cost_center_id:
+            if data_type in ["recurring_bill_payments"]:
+                queryset = queryset.filter(recurring_bill__cost_center_id=cost_center_id)
+            elif data_type in ["recurring_income_receipts"]:
+                queryset = queryset.filter(recurring_income__cost_center_id=cost_center_id)
+            else:
+                queryset = queryset.filter(cost_center_id=cost_center_id)
+        
+        # Filtro por data
+        date_from = request.query_params.get("date_from")
+        date_to = request.query_params.get("date_to")
+        if date_from:
+            queryset = queryset.filter(due_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(due_date__lte=date_to)
+        
+        # Filtro de busca avançada (campo#valor)
+        search_param = request.query_params.get("search")
+        if search_param:
+            search_filters = self._parse_search_filters(search_param)
+            
+            for field, value in search_filters.items():
+                if field == "category":
+                    if data_type in ["recurring_bill_payments"]:
+                        queryset = queryset.filter(recurring_bill__category__name__icontains=value)
+                    elif data_type in ["recurring_income_receipts"]:
+                        queryset = queryset.filter(recurring_income__category__name__icontains=value)
+                    else:
+                        queryset = queryset.filter(category__name__icontains=value)
+                
+                elif field == "cost_center":
+                    if data_type in ["recurring_bill_payments"]:
+                        queryset = queryset.filter(recurring_bill__cost_center__name__icontains=value)
+                    elif data_type in ["recurring_income_receipts"]:
+                        queryset = queryset.filter(recurring_income__cost_center__name__icontains=value)
+                    else:
+                        queryset = queryset.filter(cost_center__name__icontains=value)
+                
+                elif field == "description":
+                    if data_type in ["recurring_bill_payments"]:
+                        queryset = queryset.filter(recurring_bill__description__icontains=value)
+                    elif data_type in ["recurring_income_receipts"]:
+                        queryset = queryset.filter(recurring_income__description__icontains=value)
+                    else:
+                        queryset = queryset.filter(description__icontains=value)
+                
+                elif field == "status" and config.get("has_status"):
+                    queryset = queryset.filter(**{config["status_field"]: value})
+                
+                elif field == "contact":
+                    if data_type in ["incomes", "bills"]:
+                        queryset = queryset.filter(contact__name__icontains=value)
+        
+        return queryset
+    
+    def _get_ordering(self, data_type: str) -> list:
+        """Retorna a ordenação apropriada para cada tipo."""
+        if data_type in ["recurring_bill_payments", "recurring_income_receipts"]:
+            return ["-due_date", "-id"]
+        elif data_type in ["recurring_bills", "recurring_incomes"]:
+            return ["-next_due_date", "-id"]
+        else:
+            return ["-due_date", "-created_at", "-id"]
+    
+    def _get_detail_response(self, instance, data_type: str, request) -> dict:
+        """Retorna detalhes completos de um item específico."""
+        config = self.VALID_TYPES[data_type]
+        serializer = config["serializer"](instance, context={"request": request, "company": self.get_active_company()})
+        
+        response_data = {
+            "type": data_type,
+            "item": serializer.data,
+        }
+        
+        # Adicionar informações extras para tipos específicos
+        if data_type == "incomes" and instance.payment_transaction:
+            response_data["payment_transaction"] = TransactionSerializer(
+                instance.payment_transaction,
+                context={"request": request, "company": self.get_active_company()}
+            ).data
+        
+        elif data_type == "bills" and instance.payment_transaction:
+            response_data["payment_transaction"] = TransactionSerializer(
+                instance.payment_transaction,
+                context={"request": request, "company": self.get_active_company()}
+            ).data
+        
+        elif data_type == "recurring_bills":
+            # Incluir resumo de pagamentos
+            payments = RecurringBillPayment.objects.filter(
+                recurring_bill=instance, company=instance.company
+            )
+            pending = payments.filter(status=RecurringBillPayment.Status.PENDENTE)
+            paid = payments.filter(status=RecurringBillPayment.Status.QUITADA)
+            
+            response_data["payments_summary"] = {
+                "total_payments": payments.count(),
+                "pending_count": pending.count(),
+                "paid_count": paid.count(),
+                "total_pending": pending.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
+                "total_paid": paid.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
+            }
+        
+        elif data_type == "recurring_incomes":
+            # Incluir resumo de recebimentos
+            receipts = RecurringIncomeReceipt.objects.filter(
+                recurring_income=instance, company=instance.company
+            )
+            pending = receipts.filter(status=RecurringIncomeReceipt.Status.PENDENTE)
+            received = receipts.filter(status=RecurringIncomeReceipt.Status.RECEBIDO)
+            
+            response_data["receipts_summary"] = {
+                "total_receipts": receipts.count(),
+                "pending_count": pending.count(),
+                "received_count": received.count(),
+                "total_pending": pending.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
+                "total_received": received.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
+            }
+        
+        elif data_type == "recurring_bill_payments" and instance.transaction:
+            response_data["transaction"] = TransactionSerializer(
+                instance.transaction,
+                context={"request": request, "company": self.get_active_company()}
+            ).data
+        
+        elif data_type == "recurring_income_receipts" and instance.transaction:
+            response_data["transaction"] = TransactionSerializer(
+                instance.transaction,
+                context={"request": request, "company": self.get_active_company()}
+            ).data
+        
+        return response_data
+    
+    def _get_summary(self, queryset, data_type: str) -> dict:
+        """Gera resumo estatístico do queryset."""
+        config = self.VALID_TYPES[data_type]
+        total_count = queryset.count()
+        total_amount = queryset.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        
+        summary = {
+            "total_items": total_count,
+            "total_amount": total_amount,
+        }
+        
+        # Adicionar estatísticas de status se aplicável
+        if config.get("has_status"):
+            status_field = config["status_field"]
+            if data_type in ["incomes"]:
+                summary["pendente_count"] = queryset.filter(**{status_field: Income.Status.PENDENTE}).count()
+                summary["recebido_count"] = queryset.filter(**{status_field: Income.Status.RECEBIDO}).count()
+            elif data_type in ["bills"]:
+                summary["a_vencer_count"] = queryset.filter(**{status_field: Bill.Status.A_VENCER}).count()
+                summary["quitada_count"] = queryset.filter(**{status_field: Bill.Status.QUITADA}).count()
+            elif data_type in ["recurring_bill_payments"]:
+                summary["pendente_count"] = queryset.filter(**{status_field: RecurringBillPayment.Status.PENDENTE}).count()
+                summary["quitada_count"] = queryset.filter(**{status_field: RecurringBillPayment.Status.QUITADA}).count()
+            elif data_type in ["recurring_income_receipts"]:
+                summary["pendente_count"] = queryset.filter(**{status_field: RecurringIncomeReceipt.Status.PENDENTE}).count()
+                summary["recebido_count"] = queryset.filter(**{status_field: RecurringIncomeReceipt.Status.RECEBIDO}).count()
+        
+        return summary
+    
+    def get(self, request):
+        """
+        GET /api/v1/financials/data/
+        
+        Retorna dados financeiros filtrados e paginados.
+        """
+        # Validar tipo
+        data_type = request.query_params.get("type")
+        if not data_type:
+            return Response(
+                {
+                    "error": "Parâmetro 'type' é obrigatório.",
+                    "valid_types": list(self.VALID_TYPES.keys()),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if data_type not in self.VALID_TYPES:
+            return Response(
+                {
+                    "error": f"Tipo '{data_type}' inválido.",
+                    "valid_types": list(self.VALID_TYPES.keys()),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        config = self.VALID_TYPES[data_type]
+        company = self.get_active_company()
+        
+        # Verificar se é busca por UUID específico
+        uuid_param = request.query_params.get("uuid")
+        if uuid_param:
+            try:
+                instance = config["model"].objects.select_related(
+                    *config["select_related"]
+                ).get(id=uuid_param, company=company)
+                
+                return Response(self._get_detail_response(instance, data_type, request))
+            
+            except config["model"].DoesNotExist:
+                return Response(
+                    {"error": f"Item não encontrado com UUID: {uuid_param}"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        
+        # Gerar chave de cache
+        cache_params = {
+            "type": data_type,
+            "page": request.query_params.get("page", 1),
+            "status": request.query_params.get("status"),
+            "category_id": request.query_params.get("category_id"),
+            "cost_center_id": request.query_params.get("cost_center_id"),
+            "date_from": request.query_params.get("date_from"),
+            "date_to": request.query_params.get("date_to"),
+            "search": request.query_params.get("search"),
+        }
+        cache_key = self._generate_cache_key(str(company.id), data_type, cache_params)
+        
+        # Tentar buscar do cache
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            return Response(cached_response)
+        
+        # Construir queryset
+        queryset = config["model"].objects.select_related(*config["select_related"])
+        queryset = self._apply_filters(queryset, data_type, request)
+        queryset = queryset.order_by(*self._get_ordering(data_type))
+        
+        # Gerar resumo (antes da paginação)
+        summary = self._get_summary(queryset, data_type)
+        
+        # Paginação
+        paginator = FinancialDataPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = config["serializer"](
+                page, 
+                many=True, 
+                context={"request": request, "company": company}
+            )
+            
+            response_data = {
+                "type": data_type,
+                "summary": summary,
+                "items": serializer.data,
+                "pagination": {
+                    "page": int(request.query_params.get("page", 1)),
+                    "page_size": paginator.page_size,
+                    "total_pages": paginator.page.paginator.num_pages,
+                    "total_items": paginator.page.paginator.count,
+                    "has_next": paginator.page.has_next(),
+                    "has_previous": paginator.page.has_previous(),
+                },
+                "available_filters": {
+                    "type": list(self.VALID_TYPES.keys()),
+                    "search_fields": ["category", "cost_center", "description", "status", "contact"],
+                    "search_format": "campo#valor (ex: category#vendas,cost_center#marketing)",
+                },
+            }
+            
+            # Cachear resposta
+            cache.set(cache_key, response_data, self.CACHE_TTL)
+            
+            return Response(response_data)
+        
+        # Fallback se paginação falhar
+        serializer = config["serializer"](
+            queryset[:10], 
+            many=True, 
+            context={"request": request, "company": company}
+        )
+        
+        return Response({
+            "type": data_type,
+            "summary": summary,
+            "items": serializer.data,
+        })

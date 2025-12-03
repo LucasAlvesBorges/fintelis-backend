@@ -315,6 +315,7 @@ class BillSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category", "contact", "cost_center")
     company_name = serializers.CharField(source="company.name", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
+    category_code = serializers.CharField(source="category.code", read_only=True, allow_null=True)
     contact_name = serializers.CharField(source="contact.name", read_only=True, allow_null=True)
     cost_center_name = serializers.CharField(source="cost_center.name", read_only=True, allow_null=True)
     order_code = serializers.CharField(read_only=True)
@@ -327,6 +328,7 @@ class BillSerializer(CompanyScopedModelSerializer):
             "company_name",
             "category",
             "category_name",
+            "category_code",
             "contact",
             "contact_name",
             "cost_center",
@@ -346,6 +348,7 @@ class BillSerializer(CompanyScopedModelSerializer):
             "company",
             "company_name",
             "category_name",
+            "category_code",
             "contact_name",
             "cost_center_name",
             "order",
@@ -365,6 +368,7 @@ class IncomeSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category", "contact", "cost_center")
     company_name = serializers.CharField(source="company.name", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
+    category_code = serializers.CharField(source="category.code", read_only=True, allow_null=True)
     contact_name = serializers.CharField(source="contact.name", read_only=True, allow_null=True)
     cost_center_name = serializers.CharField(source="cost_center.name", read_only=True, allow_null=True)
     order_code = serializers.CharField(read_only=True)
@@ -377,6 +381,7 @@ class IncomeSerializer(CompanyScopedModelSerializer):
             "company_name",
             "category",
             "category_name",
+            "category_code",
             "contact",
             "contact_name",
             "cost_center",
@@ -396,6 +401,7 @@ class IncomeSerializer(CompanyScopedModelSerializer):
             "company",
             "company_name",
             "category_name",
+            "category_code",
             "contact_name",
             "cost_center_name",
             "order",
@@ -415,6 +421,7 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category", "cost_center")
     company_name = serializers.CharField(source="company.name", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
+    category_code = serializers.CharField(source="category.code", read_only=True, allow_null=True)
     cost_center_name = serializers.CharField(source="cost_center.name", read_only=True, allow_null=True)
     order_code = serializers.CharField(read_only=True)
 
@@ -426,6 +433,7 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
             "company_name",
             "category",
             "category_name",
+            "category_code",
             "cost_center",
             "cost_center_name",
             "order",
@@ -445,6 +453,7 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
             "company",
             "company_name",
             "category_name",
+            "category_code",
             "cost_center_name",
             "order",
             "order_code",
@@ -501,6 +510,7 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
     company_filtered_fields = ("category", "cost_center")
     company_name = serializers.CharField(source="company.name", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
+    category_code = serializers.CharField(source="category.code", read_only=True, allow_null=True)
     cost_center_name = serializers.CharField(source="cost_center.name", read_only=True, allow_null=True)
     order_code = serializers.CharField(read_only=True)
 
@@ -512,6 +522,7 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
             "company_name",
             "category",
             "category_name",
+            "category_code",
             "cost_center",
             "cost_center_name",
             "order",
@@ -531,6 +542,7 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
             "company",
             "company_name",
             "category_name",
+            "category_code",
             "cost_center_name",
             "order",
             "order_code",
@@ -684,3 +696,89 @@ class TransferSerializer(CompanyScopedSerializer):
                 {"amount": "Amount must be greater than zero."}
             )
         return attrs
+
+
+class RecurringBillPaymentSerializer(CompanyScopedModelSerializer):
+    """
+    Serializer para RecurringBillPayment.
+    Inclui category_code através do relacionamento com recurring_bill.
+    """
+    category_code = serializers.CharField(
+        source="recurring_bill.category.code", read_only=True, allow_null=True
+    )
+    category_name = serializers.CharField(
+        source="recurring_bill.category.name", read_only=True, allow_null=True
+    )
+    recurring_bill_description = serializers.CharField(
+        source="recurring_bill.description", read_only=True
+    )
+
+    class Meta:
+        model = RecurringBillPayment
+        fields = (
+            "id",
+            "company",
+            "recurring_bill",
+            "recurring_bill_description",
+            "category_code",
+            "category_name",
+            "transaction",
+            "due_date",
+            "paid_on",
+            "amount",
+            "status",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "company",
+            "recurring_bill_description",
+            "category_code",
+            "category_name",
+            "created_at",
+            "updated_at",
+        )
+
+
+class RecurringIncomeReceiptSerializer(CompanyScopedModelSerializer):
+    """
+    Serializer para RecurringIncomeReceipt.
+    Inclui category_code através do relacionamento com recurring_income.
+    """
+    category_code = serializers.CharField(
+        source="recurring_income.category.code", read_only=True, allow_null=True
+    )
+    category_name = serializers.CharField(
+        source="recurring_income.category.name", read_only=True, allow_null=True
+    )
+    recurring_income_description = serializers.CharField(
+        source="recurring_income.description", read_only=True
+    )
+
+    class Meta:
+        model = RecurringIncomeReceipt
+        fields = (
+            "id",
+            "company",
+            "recurring_income",
+            "recurring_income_description",
+            "category_code",
+            "category_name",
+            "transaction",
+            "due_date",
+            "received_on",
+            "amount",
+            "status",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "company",
+            "recurring_income_description",
+            "category_code",
+            "category_name",
+            "created_at",
+            "updated_at",
+        )
