@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.dashboards",
     "apps.notifications",
+    "apps.payments",
     "rest_framework",
     "django_celery_beat",
 ]
@@ -146,6 +147,10 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = os.environ.get("CELERY_TIMEZONE")
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+# Mercado Pago Configuration
+MERCADOPAGO_ACCESS_TOKEN = os.environ.get("MERCADOPAGO_ACCESS_TOKEN")
+MERCADOPAGO_PUBLIC_KEY = os.environ.get("MERCADOPAGO_PUBLIC_KEY")
 
 AUTH_PASSWORD_VALIDATORS = [
     {
