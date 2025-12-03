@@ -80,6 +80,27 @@ class BankAccountViewSet(CompanyScopedViewSet):
     queryset = BankAccount.objects.all().select_related("company", "bank")
     serializer_class = BankAccountSerializer
 
+    @action(detail=False, methods=["get"], url_path="total-balance")
+    def total_balance(self, request):
+        """
+        Retorna o total do saldo de todas as contas bancárias,
+        excluindo contas do tipo 'banco_de_creditos'.
+        """
+        company = self.get_active_company()
+        accounts = BankAccount.objects.filter(
+            company=company
+        ).exclude(
+            type=BankAccount.Types.BANCO_CREDITOS
+        )
+        
+        total = accounts.aggregate(
+            total=Sum("current_balance")
+        )["total"] or Decimal("0")
+        
+        return Response({
+            "total_balance": total
+        })
+
     @action(detail=True, methods=["get"], url_path="details")
     def details(self, request, pk=None):
         account = self.get_object()
