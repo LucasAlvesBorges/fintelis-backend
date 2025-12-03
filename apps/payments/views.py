@@ -92,9 +92,10 @@ class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
         
         plan_type = serializer.validated_data['subscription_plan_type']
         back_url = serializer.validated_data['back_url']
+        billing_day = serializer.validated_data.get('billing_day', 10)
         
-        # Obter configuração centralizada do plano
-        config = SubscriptionPlanType.get_config(plan_type)
+        # Obter configuração centralizada do plano com billing_day dinâmico
+        config = SubscriptionPlanType.get_config(plan_type, billing_day=billing_day)
         
         try:
             # Criar plano no Mercado Pago
@@ -156,14 +157,24 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'], url_path='create')
     def create_subscription(self, request):
         """
-        Cria uma nova assinatura no Mercado Pago.
+        Cria uma nova assinatura no Mercado Pago com cartão de crédito/débito.
+        O backend processa os dados do cartão e cria o token com segurança.
         
         POST /api/v1/payments/subscriptions/create/
         Body: {
             "company_id": "uuid",
             "plan_id": "uuid",
             "payer_email": "email@example.com",
-            "card_token_id": "token_123" (opcional)
+            "billing_day": 10,
+            "card_data": {
+                "card_number": "5031433215406351",
+                "cardholder_name": "NOME DO TITULAR",
+                "expiration_month": "12",
+                "expiration_year": "2025",
+                "security_code": "123",
+                "identification_type": "CPF",
+                "identification_number": "12345678909"
+            }
         }
         """
         serializer = CreateSubscriptionSerializer(data=request.data)
@@ -172,15 +183,29 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
         company_id = serializer.validated_data['company_id']
         plan_id = serializer.validated_data['plan_id']
         payer_email = serializer.validated_data['payer_email']
-        card_token_id = serializer.validated_data.get('card_token_id')
+        billing_day = serializer.validated_data.get('billing_day', 10)
+        card_data = serializer.validated_data['card_data']
         
         try:
             # Verificar se empresa existe
             company = Company.objects.get(pk=company_id)
             plan = SubscriptionPlan.objects.get(pk=plan_id)
             
-            # Criar assinatura no Mercado Pago
+            # Criar token do cartão no Mercado Pago (backend faz isso com segurança)
             mp_service = get_mercadopago_service()
+            card_token_response = mp_service.create_card_token(
+                card_number=card_data['card_number'],
+                cardholder_name=card_data['cardholder_name'],
+                expiration_month=card_data['expiration_month'],
+                expiration_year=card_data['expiration_year'],
+                security_code=card_data['security_code'],
+                identification_type=card_data['identification_type'],
+                identification_number=card_data['identification_number'],
+            )
+            
+            card_token_id = card_token_response.get('id')
+            
+            # Criar assinatura no Mercado Pago
             mp_response = mp_service.create_preapproval(
                 preapproval_plan_id=plan.preapproval_plan_id,
                 payer_email=payer_email,
@@ -251,6 +276,139 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_200_OK
             )
         
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['post'], url_path='create-pix')
+    def create_pix_payment(self, request):
+        """
+        Cria um pagamento único via PIX no Mercado Pago.
+        Não é recorrente - requer renovação manual.
+        
+        POST /api/v1/payments/subscriptions/create-pix/
+        Body: {
+            "company_id": "uuid",
+            "plan_type": "monthly",
+            "payer_email": "email@example.com",
+            "billing_day": 10
+        }
+        """
+        company_id = request.data.get('company_id')
+        plan_type = request.data.get('plan_type')
+        payer_email = request.data.get('payer_email')
+        billing_day = request.data.get('billing_day', 10)
+        
+        if not all([company_id, plan_type, payer_email]):
+            return Response(
+                {'error': 'company_id, plan_type e payer_email são obrigatórios'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Verificar se empresa existe
+            company = Company.objects.get(pk=company_id)
+            
+            # Obter configuração do plano
+            config = SubscriptionPlanType.get_config(plan_type, billing_day=billing_day)
+            
+            # Criar pagamento PIX no Mercado Pago
+            mp_service = get_mercadopago_service()
+            mp_response = mp_service.create_payment(
+                transaction_amount=config['amount'],
+                description=config['reason'],
+                payment_method_id='pix',
+                payer_email=payer_email,
+            )
+            
+            # Salvar pagamento no banco
+            payment = Payment.objects.create(
+                company=company,
+                payment_id=mp_response['id'],
+                amount=config['amount'],
+                subscription_plan=plan_type,
+                payment_method=Payment.PaymentMethod.PIX,
+                status=Payment.Status.PENDING,
+                pix_code=mp_response.get('point_of_interaction', {}).get('transaction_data', {}).get('qr_code'),
+                gateway_response=mp_response
+            )
+            
+            # Extrair dados do PIX
+            pix_data = mp_response.get('point_of_interaction', {}).get('transaction_data', {})
+            
+            return Response(
+                {
+                    'payment_id': str(payment.id),
+                    'mercadopago_payment_id': mp_response['id'],
+                    'status': mp_response['status'],
+                    'pix_code': pix_data.get('qr_code'),
+                    'qr_code_base64': pix_data.get('qr_code_base64'),
+                    'expiration_date': mp_response.get('date_of_expiration'),
+                    'amount': float(config['amount']),
+                    'description': config['reason']
+                },
+                status=status.HTTP_201_CREATED
+            )
+        
+        except Company.DoesNotExist:
+            return Response(
+                {'error': 'Empresa não encontrada'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=False, methods=['get'], url_path='check-payment/(?P<payment_id>[^/.]+)')
+    def check_payment_status(self, request, payment_id=None):
+        """
+        Verifica o status de um pagamento PIX.
+        
+        GET /api/v1/payments/subscriptions/check-payment/{payment_id}/
+        """
+        try:
+            payment = Payment.objects.get(pk=payment_id)
+            
+            # Buscar status atualizado no Mercado Pago
+            mp_service = get_mercadopago_service()
+            mp_response = mp_service.get_payment(payment.payment_id)
+            
+            # Atualizar status local se mudou
+            new_status = mp_response['status']
+            if new_status == 'approved' and payment.status != Payment.Status.COMPLETED:
+                payment.status = Payment.Status.COMPLETED
+                payment.transaction_id = mp_response.get('id')
+                payment.save()
+                
+                # Ativar assinatura da empresa
+                company = payment.company
+                company.subscription_active = True
+                company.subscription_plan = payment.subscription_plan
+                
+                # Calcular data de expiração
+                from datetime import timedelta
+                from django.utils import timezone
+                config = SubscriptionPlanType.get_config(payment.subscription_plan)
+                company.subscription_expires_at = timezone.now() + timedelta(days=config['duration_days'])
+                company.save()
+            
+            return Response({
+                'payment_id': str(payment.id),
+                'status': payment.status,
+                'mercadopago_status': new_status,
+                'amount': float(payment.amount),
+                'paid_at': mp_response.get('date_approved')
+            })
+        
+        except Payment.DoesNotExist:
+            return Response(
+                {'error': 'Pagamento não encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
             return Response(
                 {'error': str(e)},

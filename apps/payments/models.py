@@ -19,15 +19,16 @@ class SubscriptionPlanType(models.TextChoices):
     ANNUAL = "annual", "Anual"
     
     @classmethod
-    def get_config(cls, plan_type):
+    def get_config(cls, plan_type, billing_day=10):
         """
         Retorna configuração completa do plano.
         
         Args:
             plan_type: str - Tipo do plano (monthly, quarterly, etc)
+            billing_day: int - Dia do mês para cobrança (1-28). Padrão: 10
         
         Returns:
-            dict com: reason, amount, frequency, frequency_type, billing_day
+            dict com: reason, amount, frequency, frequency_type, billing_day, duration_days
         """
         from decimal import Decimal
         # Configuração de Valores dos Planos
@@ -37,7 +38,7 @@ class SubscriptionPlanType(models.TextChoices):
                 'amount': Decimal('500.00'),
                 'frequency': 1,
                 'frequency_type': 'months',
-                'billing_day': 10,
+                'billing_day': billing_day,
                 'duration_days': 30,
             },
             cls.QUARTERLY.value: {
@@ -45,7 +46,7 @@ class SubscriptionPlanType(models.TextChoices):
                 'amount': Decimal('1500.00'),
                 'frequency': 3,
                 'frequency_type': 'months',
-                'billing_day': 10,
+                'billing_day': billing_day,
                 'duration_days': 90,
             },
             cls.SEMIANNUAL.value: {
@@ -53,7 +54,7 @@ class SubscriptionPlanType(models.TextChoices):
                 'amount': Decimal('3000.00'),
                 'frequency': 6,
                 'frequency_type': 'months',
-                'billing_day': 10,
+                'billing_day': billing_day,
                 'duration_days': 180,
             },
             cls.ANNUAL.value: {
@@ -61,7 +62,7 @@ class SubscriptionPlanType(models.TextChoices):
                 'amount': Decimal('6000.00'),
                 'frequency': 12,
                 'frequency_type': 'months',
-                'billing_day': 10,
+                'billing_day': billing_day,
                 'duration_days': 365,
             },
         }

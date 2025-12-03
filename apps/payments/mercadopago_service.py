@@ -130,6 +130,52 @@ class MercadoPagoService:
         
         return response["response"]
     
+    def create_card_token(
+        self,
+        card_number: str,
+        cardholder_name: str,
+        expiration_month: str,
+        expiration_year: str,
+        security_code: str,
+        identification_type: str,
+        identification_number: str,
+    ) -> Dict[str, Any]:
+        """
+        Cria um token de cartão de crédito/débito no Mercado Pago.
+        
+        Args:
+            card_number: Número do cartão
+            cardholder_name: Nome do titular
+            expiration_month: Mês de expiração (MM)
+            expiration_year: Ano de expiração (YYYY)
+            security_code: Código de segurança (CVV)
+            identification_type: Tipo de documento (CPF ou CNPJ)
+            identification_number: Número do documento
+        
+        Returns:
+            Dict com token do cartão
+        """
+        card_data = {
+            "card_number": card_number,
+            "cardholder": {
+                "name": cardholder_name,
+                "identification": {
+                    "type": identification_type,
+                    "number": identification_number
+                }
+            },
+            "security_code": security_code,
+            "expiration_month": int(expiration_month),
+            "expiration_year": int(expiration_year),
+        }
+        
+        response = self.sdk.card_token().create(card_data)
+        
+        if response["status"] not in [200, 201]:
+            raise Exception(f"Erro ao criar token do cartão: {response}")
+        
+        return response["response"]
+    
     def create_preapproval(
         self,
         preapproval_plan_id: str,
@@ -231,6 +277,70 @@ class MercadoPagoService:
         
         if response["status"] != 200:
             raise Exception(f"Erro ao buscar assinaturas: {response}")
+        
+        return response["response"]
+    
+    def create_payment(
+        self,
+        transaction_amount: Decimal,
+        description: str,
+        payment_method_id: str,
+        payer_email: str,
+        payer_identification_type: str = None,
+        payer_identification_number: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Cria um pagamento único (não recorrente) no Mercado Pago.
+        Usado para PIX e outros métodos de pagamento único.
+        
+        Args:
+            transaction_amount: Valor do pagamento
+            description: Descrição do pagamento
+            payment_method_id: ID do método ('pix', 'bolbancario', etc)
+            payer_email: Email do pagador
+            payer_identification_type: Tipo de documento ('CPF' ou 'CNPJ')
+            payer_identification_number: Número do documento
+        
+        Returns:
+            Dict com resposta do Mercado Pago incluindo QR Code para PIX
+        """
+        payment_data = {
+            "transaction_amount": float(transaction_amount),
+            "description": description,
+            "payment_method_id": payment_method_id,
+            "payer": {
+                "email": payer_email,
+            }
+        }
+        
+        # Adicionar identificação se fornecida
+        if payer_identification_type and payer_identification_number:
+            payment_data["payer"]["identification"] = {
+                "type": payer_identification_type,
+                "number": payer_identification_number
+            }
+        
+        response = self.sdk.payment().create(payment_data)
+        
+        if response["status"] not in [200, 201]:
+            raise Exception(f"Erro ao criar pagamento: {response}")
+        
+        return response["response"]
+    
+    def get_payment(self, payment_id: str) -> Dict[str, Any]:
+        """
+        Busca um pagamento por ID.
+        
+        Args:
+            payment_id: ID do pagamento no Mercado Pago
+        
+        Returns:
+            Dict com dados do pagamento
+        """
+        response = self.sdk.payment().get(payment_id)
+        
+        if response["status"] != 200:
+            raise Exception(f"Erro ao buscar pagamento: {response}")
         
         return response["response"]
 

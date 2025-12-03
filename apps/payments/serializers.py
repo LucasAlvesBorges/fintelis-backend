@@ -42,6 +42,13 @@ class CreateSubscriptionPlanSerializer(serializers.Serializer):
         choices=['monthly', 'quarterly', 'semiannual', 'annual']
     )
     back_url = serializers.URLField()
+    billing_day = serializers.IntegerField(
+        min_value=1,
+        max_value=28,
+        required=False,
+        default=10,
+        help_text='Dia do mês para cobrança (1-28). Padrão: 10'
+    )
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
@@ -78,6 +85,19 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         ]
 
 
+class CardDataSerializer(serializers.Serializer):
+    """
+    Serializer para dados do cartão de crédito/débito.
+    """
+    card_number = serializers.CharField(max_length=19, min_length=13)
+    cardholder_name = serializers.CharField(max_length=255)
+    expiration_month = serializers.CharField(max_length=2)
+    expiration_year = serializers.CharField(max_length=4)
+    security_code = serializers.CharField(max_length=4, min_length=3)
+    identification_type = serializers.ChoiceField(choices=['CPF', 'CNPJ'])
+    identification_number = serializers.CharField(max_length=14)
+
+
 class CreateSubscriptionSerializer(serializers.Serializer):
     """
     Serializer para criar assinatura no Mercado Pago.
@@ -85,9 +105,15 @@ class CreateSubscriptionSerializer(serializers.Serializer):
     company_id = serializers.UUIDField()
     plan_id = serializers.UUIDField()
     payer_email = serializers.EmailField()
-    card_token_id = serializers.CharField(
+    billing_day = serializers.IntegerField(
+        min_value=1,
+        max_value=28,
         required=False,
-        help_text='Token do cartão gerado no frontend'
+        default=10
+    )
+    card_data = CardDataSerializer(
+        required=True,
+        help_text='Dados do cartão de crédito/débito'
     )
 
 
@@ -141,4 +167,22 @@ class PaymentConfirmationSerializer(serializers.Serializer):
     payment_id = serializers.CharField(max_length=255)
     status = serializers.ChoiceField(choices=['pending', 'completed', 'failed'])
     transaction_id = serializers.CharField(max_length=255, required=False)
+
+
+class CreatePixPaymentSerializer(serializers.Serializer):
+    """
+    Serializer para criação de pagamento PIX.
+    """
+    company_id = serializers.UUIDField(required=True)
+    plan_type = serializers.ChoiceField(
+        choices=['monthly', 'quarterly', 'semiannual', 'annual'],
+        required=True
+    )
+    payer_email = serializers.EmailField(required=True)
+    billing_day = serializers.IntegerField(
+        min_value=1,
+        max_value=28,
+        required=False,
+        default=10
+    )
 
