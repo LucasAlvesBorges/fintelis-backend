@@ -238,14 +238,14 @@ CREATE TABLE "inventory_movements" ( -- O Histórico (Kardex)
 -- =======================================
 
 CREATE TABLE "notification" (
-    "id" BIGSERIAL PRIMARY KEY,
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "company_id" BIGINT NOT NULL REFERENCES "company" ("id"),
+    "title" VARCHAR(255) NOT NULL,
     "message" TEXT NOT NULL,
     "is_read" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT (now()),
-    "link_to_bill_id" BIGINT NULL REFERENCES "bill" ("id"),
-    "link_to_income_id" BIGINT NULL REFERENCES "income" ("id"),
-    "link_to_stock_item_id" BIGINT NULL REFERENCES "stock_item" ("id")
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT (now()),
+    "link_to_stock_item_id" UUID NULL REFERENCES "stock_item" ("id")
 );
 ````
 
@@ -382,7 +382,14 @@ A IA deve implementar as seguintes lógicas de negócio:
       * **Lógica:** A task escaneia todos os `Bill` com `status = 'a_vencer'` e `Income` com `status = 'pendente'` cuja `due_date` esteja próxima (ex: D-5).
       * **Ação:** Cria um registro na tabela `Notification` para cada item encontrado (se já não houver um alerta ativo).
   * **Alertas de Estoque:**
-      * **Implementação:** **Instantânea**, acionada pela Lógica 5.5 (Movimentação de Estoque).
-      * **Lógica:** Após `stock_item.save()`, o backend deve verificar:
-        `if stock_item.quantity_on_hand <= stock_item.product.min_stock_level:`
-      * **Ação:** Se for verdade (e não houver alerta *não lido* para este item), cria um `Notification` com `link_to_stock_item_id`.
+      * **Implementação:** **Instantânea**, acionada via signal `post_save` no modelo `StockItem` (após qualquer atualização de `quantity_on_hand`).
+      * **Lógica:** Após `stock_item.save()`, o signal `check_stock_levels` verifica:
+        `if stock_item.quantity_on_hand <= stock_item.min_stock_level:`
+        * **Nota:** O `min_stock_level` é específico para cada `StockItem` (produto + inventário), permitindo níveis mínimos diferentes por local de estoque.
+      * **Ação:** Se a condição for verdadeira, o sistema verifica se já existe uma notificação *não lida* (`is_read=False`) para este `stock_item`. Se não existir, cria um `Notification` com:
+        * `company`: A empresa do `stock_item`
+        * `title`: "Alerta de Estoque Baixo"
+        * `message`: Contém o nome do produto, nome do inventário, nível mínimo e quantidade atual
+        * `link_to_stock_item`: Referência ao `StockItem` que gerou o alerta
+        * `is_read`: `False` (padrão)
+      * **Prevenção de Duplicatas:** O sistema evita criar múltiplas notificações não lidas para o mesmo item, garantindo que apenas uma notificação ativa exista por `StockItem` abaixo do nível mínimo.
