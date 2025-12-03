@@ -29,19 +29,19 @@ Cookie: access_token=<access_token>; company_access_token=<company_token>
 
 ### Campos Obrigatórios
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `uuid` | UUID | UUID do item financeiro (bill, income, recurring_bill_payment ou recurring_income_receipt) |
-| `type` | string | Tipo do item. Valores aceitos: `bills`, `incomes`, `recurring_bill_payments`, `recurring_income_receipts` |
-| `bank_account` | UUID | UUID da conta bancária onde a transação será registrada |
-| `transaction_date` | date (YYYY-MM-DD) | Data da transação |
+| Campo | Tipo | Descrição | Exemplo |
+|-------|------|-----------|---------|
+| `uuid` | UUID | UUID do item financeiro (bill, income, recurring_bill_payment ou recurring_income_receipt). Deve pertencer à empresa ativa. | `"90764fed-4ba7-4e0b-9609-68c94d7184c6"` |
+| `type` | string | Tipo do item. Valores aceitos: `bills`, `incomes`, `recurring_bill_payments`, `recurring_income_receipts` | `"bills"` |
+| `bank_account` | UUID | UUID da conta bancária onde a transação será registrada. Deve pertencer à empresa ativa. | `"8d2bd953-a203-4c63-901d-75e9a93ae00a"` |
+| `transaction_date` | date (YYYY-MM-DD) | Data da transação. Usado para `paid_on` (payments) e `received_on` (receipts). | `"2025-12-03"` |
 
 ### Campos Opcionais
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `description` | string | Descrição personalizada da transação. Se não fornecida, será gerada automaticamente |
-| `payment_method` | UUID | UUID do método de pagamento |
+| Campo | Tipo | Descrição | Exemplo |
+|-------|------|-----------|---------|
+| `description` | string | Descrição personalizada da transação. Se não fornecida, será gerada automaticamente com base no tipo e descrição do item | `"Pagamento via PIX"` |
+| `payment_method` | UUID | UUID do método de pagamento (obtido através da API `/api/v1/financials/payment-methods/`). Opcional. | `"c32ebfed-fe56-4f84-98e3-5580c14e1241"` |
 
 ---
 
@@ -84,8 +84,8 @@ A transação é criada com dados pré-preenchidos do item selecionado:
 
 #### Para RecurringBillPayments e RecurringIncomeReceipts:
 - **Categoria**: Copiada do recurring_bill/recurring_income pai (`item.recurring_bill.category` ou `item.recurring_income.category`)
-- **Centro de Custo**: Copiado do recurring_bill/recurring_income pai
-- **Contato**: `null` (não aplicável)
+- **Centro de Custo**: Copiado do recurring_bill/recurring_income pai (`item.recurring_bill.cost_center` ou `item.recurring_income.cost_center`)
+- **Contato**: Copiado do recurring_bill/recurring_income pai (`item.recurring_bill.contact` ou `item.recurring_income.contact`) - se existir
 - **Valor**: Copiado do item (`item.amount`)
 - **Tipo de Transação**:
   - `DESPESA` para recurring_bill_payments
@@ -202,15 +202,44 @@ A resposta retorna a mesma estrutura do GET com `uuid`, incluindo:
     "type": "incomes",
     "item": {
         "id": "uuid-do-income",
-        "status": "recebido",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "uuid-da-categoria",
+        "category_name": "Vendas",
+        "category_code": "1",
+        "cost_center": "uuid-do-centro-custo",
+        "cost_center_name": "Comercial",
+        "contact": "uuid-do-contato",
+        "contact_name": "Cliente Exemplo",
         "payment_transaction": "uuid-da-transacao",
-        // ... outros campos
+        "description": "Venda de produto",
+        "amount": "1500.00",
+        "due_date": "2025-12-10",
+        "status": "recebido",
+        "created_at": "2025-11-28T12:00:00-03:00",
+        "updated_at": "2025-12-03T15:00:00-03:00"
     },
     "payment_transaction": {
         "id": "uuid-da-transacao",
-        "type": "receita",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+        "bank_account_name": "Conta Principal",
+        "category": "uuid-da-categoria",
+        "category_name": "Vendas",
+        "category_code": "1",
+        "cost_center": "uuid-do-centro-custo",
+        "cost_center_name": "Comercial",
+        "contact": "uuid-do-contato",
+        "contact_name": "Cliente Exemplo",
+        "payment_method": "c32ebfed-fe56-4f84-98e3-5580c14e1241",
+        "payment_method_name": "Pix",
+        "description": "Recebimento - Venda de produto",
         "amount": "1500.00",
-        // ... outros campos
+        "type": "receita",
+        "transaction_date": "2025-12-03",
+        "created_at": "2025-12-03T15:00:00-03:00",
+        "updated_at": "2025-12-03T15:00:00-03:00"
     }
 }
 ```
@@ -222,16 +251,42 @@ A resposta retorna a mesma estrutura do GET com `uuid`, incluindo:
     "type": "recurring_bill_payments",
     "item": {
         "id": "uuid-do-payment",
-        "status": "quitada",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "recurring_bill": "uuid-do-recurring-bill",
+        "recurring_bill_description": "Assinatura mensal - Software",
+        "category_code": "2",
+        "category_name": "Despesas Operacionais",
+        "contact_name": "Fornecedor Exemplo LTDA",
         "transaction": "uuid-da-transacao",
+        "due_date": "2025-12-10",
         "paid_on": "2025-12-03",
-        // ... outros campos
+        "amount": "299.00",
+        "status": "quitada",
+        "created_at": "2025-11-28T12:00:00-03:00",
+        "updated_at": "2025-12-03T15:00:00-03:00"
     },
     "transaction": {
         "id": "uuid-da-transacao",
-        "type": "despesa",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+        "bank_account_name": "Conta Principal",
+        "category": "uuid-da-categoria",
+        "category_name": "Despesas Operacionais",
+        "category_code": "2",
+        "cost_center": "uuid-do-centro-custo",
+        "cost_center_name": "Administracao",
+        "contact": "uuid-do-contato",
+        "contact_name": "Fornecedor Exemplo LTDA",
+        "payment_method": "809f3d50-026a-4ec2-8efc-e642b384eaf2",
+        "payment_method_name": "Boleto",
+        "description": "Pagamento - Assinatura mensal - Software",
         "amount": "299.00",
-        // ... outros campos
+        "type": "despesa",
+        "transaction_date": "2025-12-03",
+        "created_at": "2025-12-03T15:00:00-03:00",
+        "updated_at": "2025-12-03T15:00:00-03:00"
     }
 }
 ```
@@ -243,16 +298,42 @@ A resposta retorna a mesma estrutura do GET com `uuid`, incluindo:
     "type": "recurring_income_receipts",
     "item": {
         "id": "uuid-do-receipt",
-        "status": "recebido",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "recurring_income": "uuid-do-recurring-income",
+        "recurring_income_description": "Aluguel recebido - Sala comercial",
+        "category_code": "1",
+        "category_name": "Vendas",
+        "contact_name": "Cliente Exemplo LTDA",
         "transaction": "uuid-da-transacao",
+        "due_date": "2025-12-10",
         "received_on": "2025-12-03",
-        // ... outros campos
+        "amount": "5000.00",
+        "status": "recebido",
+        "created_at": "2025-11-28T12:00:00-03:00",
+        "updated_at": "2025-12-03T15:00:00-03:00"
     },
     "transaction": {
         "id": "uuid-da-transacao",
-        "type": "receita",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+        "bank_account_name": "Conta Principal",
+        "category": "uuid-da-categoria",
+        "category_name": "Vendas",
+        "category_code": "1",
+        "cost_center": "uuid-do-centro-custo",
+        "cost_center_name": "Comercial",
+        "contact": "uuid-do-contato",
+        "contact_name": "Cliente Exemplo LTDA",
+        "payment_method": "c32ebfed-fe56-4f84-98e3-5580c14e1241",
+        "payment_method_name": "Pix",
+        "description": "Recebimento - Aluguel recebido - Sala comercial",
         "amount": "5000.00",
-        // ... outros campos
+        "type": "receita",
+        "transaction_date": "2025-12-03",
+        "created_at": "2025-12-03T15:00:00-03:00",
+        "updated_at": "2025-12-03T15:00:00-03:00"
     }
 }
 ```
@@ -418,7 +499,7 @@ curl -X POST "http://localhost:8000/api/v1/financials/data/" \
 - Transação criada com tipo `DESPESA`
 - RecurringBillPayment atualizado para status `quitada`
 - Campo `paid_on` preenchido com `transaction_date`
-- Categoria e centro de custo copiados do `recurring_bill` pai
+- Categoria, centro de custo e contato copiados do `recurring_bill` pai
 - Saldo da conta bancária reduzido pelo valor do payment
 
 ### Exemplo 4: Criar Transação para RecurringIncomeReceipt
@@ -442,7 +523,7 @@ curl -X POST "http://localhost:8000/api/v1/financials/data/" \
 - Transação criada com tipo `RECEITA`
 - RecurringIncomeReceipt atualizado para status `recebido`
 - Campo `received_on` preenchido com `transaction_date`
-- Categoria e centro de custo copiados do `recurring_income` pai
+- Categoria, centro de custo e contato copiados do `recurring_income` pai
 - Saldo da conta bancária aumentado pelo valor do receipt
 
 ---
@@ -453,7 +534,7 @@ curl -X POST "http://localhost:8000/api/v1/financials/data/" \
 
 2. **Atualização Automática de Saldo**: O saldo da conta bancária é atualizado automaticamente quando a transação é criada. Não é necessário fazer chamadas adicionais.
 
-3. **Pré-preenchimento Inteligente**: Todos os dados relevantes (categoria, centro de custo, contato, valor) são copiados automaticamente do item, facilitando o processo de criação.
+3. **Pré-preenchimento Inteligente**: Todos os dados relevantes (categoria, centro de custo, contato, valor) são copiados automaticamente do item ou do item pai (para recurring payments/receipts), facilitando o processo de criação.
 
 4. **Validações de Negócio**: O endpoint valida se o item pode receber uma transação (não está quitado/recebido e não possui transação existente).
 

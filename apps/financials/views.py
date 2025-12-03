@@ -23,6 +23,7 @@ from .models import (
     CashRegister,
     Category,
     Income,
+    PaymentMethod,
     RecurringBill,
     RecurringBillPayment,
     RecurringIncome,
@@ -40,6 +41,7 @@ from .serializers import (
     FinancialDataTransactionSerializer,
     IncomePaymentSerializer,
     IncomeSerializer,
+    PaymentMethodSerializer,
     RecurringBillSerializer,
     RecurringBillPaymentSerializer,
     RecurringIncomeSerializer,
@@ -76,6 +78,13 @@ class CompanyScopedViewSet(ActiveCompanyMixin, viewsets.ModelViewSet):
 class BankViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Bank.objects.filter(is_active=True).order_by("code")
     serializer_class = BankSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class PaymentMethodViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet para listar métodos de pagamento."""
+    queryset = PaymentMethod.objects.all().order_by("name")
+    serializer_class = PaymentMethodSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
@@ -851,6 +860,47 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
         params_hash = hashlib.md5(params_str.encode()).hexdigest()[:12]
         return f"financial_data:{company_id}:{data_type}:{params_hash}"
     
+    def _invalidate_cache(self, company_id: str, data_type: str):
+        """
+        Invalida todo o cache relacionado a um tipo de dado específico para uma empresa.
+        Usa versionamento de cache: incrementa a versão, o que automaticamente invalida
+        todos os caches antigos porque a versão faz parte da chave.
+        
+        Também invalida tipos relacionados:
+        - bills/incomes: também invalida transactions
+        - recurring_bill_payments: também invalida recurring_bills e transactions
+        - recurring_income_receipts: também invalida recurring_incomes e transactions
+        """
+        # Invalidar o tipo específico
+        version_key = f"financial_data_version:{company_id}:{data_type}"
+        try:
+            current_version = cache.get(version_key, 0)
+            cache.set(version_key, current_version + 1, timeout=None)  # Sem timeout
+        except Exception:
+            pass  # Se falhar, não é crítico
+        
+        # Invalidar tipos relacionados
+        related_types = []
+        
+        if data_type in ["bills", "incomes"]:
+            # Bills e incomes criam transactions, então invalidar transactions também
+            related_types.append("transactions")
+        elif data_type == "recurring_bill_payments":
+            # Payments criam transactions e afetam o recurring_bill pai
+            related_types.extend(["transactions", "recurring_bills"])
+        elif data_type == "recurring_income_receipts":
+            # Receipts criam transactions e afetam o recurring_income pai
+            related_types.extend(["transactions", "recurring_incomes"])
+        
+        # Invalidar versões dos tipos relacionados
+        for related_type in related_types:
+            related_version_key = f"financial_data_version:{company_id}:{related_type}"
+            try:
+                current_version = cache.get(related_version_key, 0)
+                cache.set(related_version_key, current_version + 1, timeout=None)
+            except Exception:
+                pass
+    
     def _parse_search_filters(self, search_param: str) -> dict:
         """
         Parseia o parâmetro de busca no formato 'campo#valor,campo2#valor2'.
@@ -1207,7 +1257,11 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
         
-        # Gerar chave de cache
+        # Verificar versão do cache para invalidar se necessário
+        version_key = f"financial_data_version:{company.id}:{data_type}"
+        cache_version = cache.get(version_key, 0)
+        
+        # Gerar chave de cache incluindo a versão
         cache_params = {
             "type": data_type,
             "page": request.query_params.get("page", 1),
@@ -1217,6 +1271,7 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
             "date_from": request.query_params.get("date_from"),
             "date_to": request.query_params.get("date_to"),
             "search": request.query_params.get("search"),
+            "version": cache_version,  # Incluir versão na chave
         }
         cache_key = self._generate_cache_key(str(company.id), data_type, cache_params)
         
@@ -1447,6 +1502,9 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
                 item.status = RecurringIncomeReceipt.Status.RECEBIDO
                 item.received_on = data["transaction_date"]
                 item.save(update_fields=["transaction", "status", "received_on", "updated_at"])
+        
+        # Invalidar cache para o tipo de dado modificado
+        self._invalidate_cache(str(company.id), item_type)
         
         # Retornar detalhes atualizados do item
         item.refresh_from_db()

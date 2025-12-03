@@ -802,6 +802,15 @@ class RecurringIncomeReceiptSerializer(CompanyScopedModelSerializer):
         )
 
 
+class PaymentMethodSerializer(serializers.ModelSerializer):
+    """Serializer para PaymentMethod."""
+    
+    class Meta:
+        model = PaymentMethod
+        fields = ["id", "name", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
 class FinancialDataTransactionSerializer(CompanyScopedSerializer):
     """
     Serializer para criar transações a partir de itens financeiros.

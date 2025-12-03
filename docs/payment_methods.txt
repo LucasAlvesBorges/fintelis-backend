@@ -1,0 +1,188 @@
+# API de Payment Methods (Métodos de Pagamento)
+
+Endpoint para listar métodos de pagamento disponíveis no sistema.
+
+---
+
+## Endpoint
+
+**GET** `/api/v1/financials/payment-methods/`
+
+Lista todos os métodos de pagamento cadastrados no sistema.
+
+---
+
+## Autenticação
+
+Requer autenticação JWT.
+
+**Headers obrigatórios:**
+```
+Authorization: Bearer <access_token>
+X-Company-Id: <company_id>
+```
+
+Ou usar cookies de autenticação:
+```
+Cookie: access_token=<access_token>; company_access_token=<company_token>
+```
+
+**Nota:** Payment Methods são globais e não estão associados a uma empresa específica. O header `X-Company-Id` é necessário apenas para autenticação, mas não filtra os resultados.
+
+---
+
+## Resposta de Sucesso
+
+**Status Code:** `200 OK`
+
+Retorna uma lista de métodos de pagamento ordenados por nome.
+
+### Estrutura da Resposta
+
+```json
+[
+    {
+        "id": "809f3d50-026a-4ec2-8efc-e642b384eaf2",
+        "name": "Boleto",
+        "created_at": "2025-11-28T12:18:52.501891-03:00",
+        "updated_at": "2025-11-28T12:18:52.501917-03:00"
+    },
+    {
+        "id": "c32ebfed-fe56-4f84-98e3-5580c14e1241",
+        "name": "Pix",
+        "created_at": "2025-11-28T12:18:52.493580-03:00",
+        "updated_at": "2025-11-28T12:18:52.493586-03:00"
+    }
+]
+```
+
+### Campos da Resposta
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | Identificador único do método de pagamento |
+| `name` | string | Nome do método de pagamento (ex: "Pix", "Boleto", "Cartão de Crédito") |
+| `created_at` | datetime | Data e hora de criação do registro |
+| `updated_at` | datetime | Data e hora da última atualização do registro |
+
+---
+
+## Ordenação
+
+Os métodos de pagamento são retornados ordenados por `name` (ordem alfabética crescente).
+
+---
+
+## Exemplos de Uso
+
+### Exemplo 1: Listar todos os métodos de pagamento
+
+**Request:**
+```bash
+curl -X GET "http://localhost:8000/api/v1/financials/payment-methods/" \
+  -H "Authorization: Bearer <access_token>" \
+  -H "X-Company-Id: <company_id>"
+```
+
+**Response:**
+```json
+[
+    {
+        "id": "809f3d50-026a-4ec2-8efc-e642b384eaf2",
+        "name": "Boleto",
+        "created_at": "2025-11-28T12:18:52.501891-03:00",
+        "updated_at": "2025-11-28T12:18:52.501917-03:00"
+    },
+    {
+        "id": "c32ebfed-fe56-4f84-98e3-5580c14e1241",
+        "name": "Pix",
+        "created_at": "2025-11-28T12:18:52.493580-03:00",
+        "updated_at": "2025-11-28T12:18:52.493586-03:00"
+    }
+]
+```
+
+---
+
+## Respostas de Erro
+
+### 401 Unauthorized - Token Inválido
+
+```json
+{
+    "detail": "As credenciais de autenticação não foram fornecidas."
+}
+```
+
+### 403 Forbidden - Sem Permissão
+
+```json
+{
+    "detail": "Você não tem permissão para executar essa ação."
+}
+```
+
+---
+
+## Notas Importantes
+
+1. **Métodos Globais**: Payment Methods são globais e não estão associados a empresas específicas. Todos os usuários autenticados veem a mesma lista.
+
+2. **Uso em Transações**: Os métodos de pagamento podem ser associados a transações financeiras através do campo `payment_method` ao criar uma transação.
+
+3. **Ordenação**: Os resultados são sempre ordenados alfabeticamente por nome.
+
+4. **Read-Only**: Esta API é somente leitura (ReadOnlyModelViewSet). Para criar, editar ou excluir métodos de pagamento, use o Django Admin.
+
+5. **UUID**: Cada método de pagamento possui um UUID único que pode ser usado para referenciar o método em outras APIs (ex: ao criar uma transação).
+
+---
+
+## Integração com Outras APIs
+
+### Uso ao Criar Transação
+
+Ao criar uma transação através da API `/api/v1/financials/data/` (POST), você pode especificar um `payment_method` usando o UUID retornado por esta API:
+
+```json
+{
+    "uuid": "uuid-do-item",
+    "type": "bills",
+    "bank_account": "uuid-da-conta",
+    "transaction_date": "2025-12-03",
+    "payment_method": "c32ebfed-fe56-4f84-98e3-5580c14e1241"
+}
+```
+
+### Uso em Transações Existentes
+
+As transações retornadas pela API `/api/v1/financials/transactions/` incluem o campo `payment_method` (UUID) e `payment_method_name` (nome legível) quando um método de pagamento foi associado.
+
+---
+
+## Exemplos de Métodos de Pagamento Comuns
+
+Os métodos de pagamento mais comuns no sistema incluem:
+
+- **Pix**: Transferência instantânea via PIX
+- **Boleto**: Boleto bancário
+- **Cartão de Crédito**: Pagamento com cartão de crédito
+- **Cartão de Débito**: Pagamento com cartão de débito
+- **Dinheiro**: Pagamento em dinheiro
+- **Transferência Bancária**: Transferência bancária tradicional
+- **Cheque**: Pagamento via cheque
+
+**Nota:** A lista exata de métodos disponíveis depende do que foi cadastrado no sistema através do Django Admin ou do comando de seed.
+
+---
+
+## Comando de Seed
+
+Para popular o banco de dados com métodos de pagamento padrão, execute:
+
+```bash
+docker-compose exec app python manage.py seed_payment_methods
+```
+
+Este comando cria os métodos de pagamento mais comuns se eles ainda não existirem.
+
