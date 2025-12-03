@@ -897,6 +897,24 @@ class RecurringBillPayment(TimeStampedModel):
         if errors:
             raise ValidationError(errors)
 
+    def save(self, *args, **kwargs):
+        """Salva o payment e verifica se todas as parcelas estão quitadas."""
+        super().save(*args, **kwargs)
+        
+        # Verificar se todas as parcelas do recurring_bill estão quitadas
+        if self.recurring_bill:
+            all_payments = RecurringBillPayment.objects.filter(
+                recurring_bill=self.recurring_bill,
+                company=self.company
+            )
+            total_payments = all_payments.count()
+            paid_payments = all_payments.filter(status=RecurringBillPayment.Status.QUITADA).count()
+            
+            # Se todas as parcelas estão quitadas e o recurring_bill está ativo, desativar
+            if total_payments > 0 and paid_payments == total_payments:
+                if self.recurring_bill.is_active:
+                    RecurringBill.objects.filter(id=self.recurring_bill.id).update(is_active=False)
+
     def __str__(self):
         return f"{self.recurring_bill} - {self.due_date} ({self.get_status_display()})"
 
@@ -954,6 +972,24 @@ class RecurringIncomeReceipt(TimeStampedModel):
                 )
         if errors:
             raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        """Salva o receipt e verifica se todas as parcelas estão recebidas."""
+        super().save(*args, **kwargs)
+        
+        # Verificar se todas as parcelas do recurring_income estão recebidas
+        if self.recurring_income:
+            all_receipts = RecurringIncomeReceipt.objects.filter(
+                recurring_income=self.recurring_income,
+                company=self.company
+            )
+            total_receipts = all_receipts.count()
+            received_receipts = all_receipts.filter(status=RecurringIncomeReceipt.Status.RECEBIDO).count()
+            
+            # Se todas as parcelas estão recebidas e o recurring_income está ativo, desativar
+            if total_receipts > 0 and received_receipts == total_receipts:
+                if self.recurring_income.is_active:
+                    RecurringIncome.objects.filter(id=self.recurring_income.id).update(is_active=False)
 
     def __str__(self):
         return f"{self.recurring_income} - {self.due_date} ({self.get_status_display()})"
