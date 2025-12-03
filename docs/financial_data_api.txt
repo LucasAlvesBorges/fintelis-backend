@@ -1,0 +1,536 @@
+# API Unificada de Dados Financeiros
+
+Endpoint unificado para visualização de todos os dados financeiros com cache Redis,
+paginação de 10 itens por página e filtros avançados.
+
+---
+
+## Endpoint Principal
+
+```
+GET /api/v1/financials/data/
+```
+
+**Autenticação:** Requerida (Bearer Token + X-Company-Token)
+
+---
+
+## Tipos de Dados Disponíveis
+
+O parâmetro `type` define qual tipo de dado será retornado:
+
+| Tipo | Descrição |
+|------|-----------|
+| `incomes` | Contas a receber |
+| `bills` | Contas a pagar |
+| `recurring_bills` | Contas recorrentes a pagar |
+| `recurring_incomes` | Contas recorrentes a receber |
+| `recurring_bill_payments` | Pagamentos de contas recorrentes (instâncias) |
+| `recurring_income_receipts` | Recebimentos de contas recorrentes (instâncias) |
+
+---
+
+## Parâmetros de Query
+
+### Obrigatórios
+
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `type` | string | Tipo de dado a buscar (ver tabela acima) |
+
+### Opcionais
+
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `uuid` | UUID | ID de um item específico para ver detalhes completos |
+| `page` | integer | Número da página (padrão: 1) |
+| `status` | string | Filtro por status. Valores: `a_vencer`, `quitada` (bills), `pendente`, `recebido` (incomes), `pendente`, `quitada` (recurring_bill_payments), `pendente`, `recebido` (recurring_income_receipts) |
+| `category_id` | UUID | Filtro por ID da categoria |
+| `cost_center_id` | UUID | Filtro por ID do centro de custo |
+| `date_from` | date (YYYY-MM-DD) | Data inicial para filtrar por due_date |
+| `date_to` | date (YYYY-MM-DD) | Data final para filtrar por due_date |
+| `search` | string | Filtro de busca avançada (ver formato abaixo) |
+
+---
+
+## Filtro de Busca Avançada (search)
+
+O parâmetro `search` aceita filtros no formato `campo#valor`.
+Múltiplos filtros podem ser combinados separados por vírgula.
+
+### Campos Disponíveis
+
+| Campo | Descrição | Exemplo |
+|-------|-----------|---------|
+| `category` | Filtra por nome da categoria | `category#vendas` |
+| `cost_center` | Filtra por nome do centro de custo | `cost_center#administracao` |
+| `description` | Filtra por descrição contendo o valor | `description#aluguel` |
+| `status` | Filtra por status | `status#pendente` |
+| `contact` | Filtra por nome do contato (incomes/bills) | `contact#fornecedor` |
+
+### Exemplos de Busca
+
+```bash
+# Filtrar por categoria "vendas"
+GET /api/v1/financials/data/?type=incomes&search=category#vendas
+
+# Filtrar por centro de custo "administração"
+GET /api/v1/financials/data/?type=bills&search=cost_center#administracao
+
+# Múltiplos filtros combinados
+GET /api/v1/financials/data/?type=incomes&search=category#vendas,cost_center#marketing
+
+# Filtrar por descrição e status
+GET /api/v1/financials/data/?type=bills&search=description#aluguel,status#pendente
+```
+
+---
+
+## Resposta: Lista Paginada
+
+Quando `uuid` não é fornecido, retorna lista paginada com 10 itens.
+
+### Exemplo: Bills
+
+```json
+{
+    "type": "bills",
+    "summary": {
+        "total_items": 9,
+        "total_amount": 7918.0,
+        "a_vencer_count": 7,
+        "quitada_count": 2
+    },
+    "items": [
+        {
+            "id": "90764fed-4ba7-4e0b-9609-68c94d7184c6",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "company_name": "Startec Serviços e Tecnologia",
+            "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+            "category_name": "Despesas Operacionais",
+            "category_code": "2",
+            "contact": null,
+            "contact_name": null,
+            "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+            "cost_center_name": "Administracao",
+            "order": 2,
+            "order_code": "#02",
+            "payment_transaction": null,
+            "description": "Aluguel",
+            "amount": "2000.00",
+            "due_date": "2025-12-13",
+            "status": "a_vencer",
+            "created_at": "2025-11-28T12:39:31.620065-03:00",
+            "updated_at": "2025-11-28T12:39:31.620070-03:00"
+        },
+        {
+            "id": "f65d3033-4724-4321-a08b-81ea7eb4892a",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "company_name": "Startec Serviços e Tecnologia",
+            "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+            "category_name": "Despesas Operacionais",
+            "category_code": "2",
+            "contact": "c081a2d2-3dbb-4cf1-b662-32ce1d4c6540",
+            "contact_name": "Fornecedor Exemplo ME",
+            "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+            "cost_center_name": "Administracao",
+            "order": 1,
+            "order_code": "#01",
+            "payment_transaction": null,
+            "description": "Conta de energia",
+            "amount": "450.00",
+            "due_date": "2025-12-08",
+            "status": "a_vencer",
+            "created_at": "2025-11-28T12:39:31.617512-03:00",
+            "updated_at": "2025-11-28T12:39:31.617517-03:00"
+        }
+        // ... mais 7 itens (total de 9)
+    ],
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 9,
+        "has_next": false,
+        "has_previous": false
+    },
+    "available_filters": {
+        "type": [
+            "incomes",
+            "bills",
+            "recurring_bills",
+            "recurring_incomes",
+            "recurring_bill_payments",
+            "recurring_income_receipts"
+        ],
+        "search_fields": [
+            "category",
+            "cost_center",
+            "description",
+            "status",
+            "contact"
+        ],
+        "search_format": "campo#valor (ex: category#vendas,cost_center#marketing)"
+    }
+}
+```
+
+### Exemplo: Incomes
+
+```json
+{
+    "type": "incomes",
+    "summary": {
+        "total_items": 8,
+        "total_amount": 25040.0,
+        "pendente_count": 5,
+        "recebido_count": 3
+    },
+    "items": [
+        {
+            "id": "eb44c66f-ded0-4e1e-8a14-e1da59d249ba",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "company_name": "Startec Serviços e Tecnologia",
+            "category": "89d25e77-b85e-4f3a-8cc4-142c4ce8ed35",
+            "category_name": "Vendas",
+            "category_code": "1",
+            "contact": "0c9ce895-09eb-4128-bd44-959c5616ffc9",
+            "contact_name": "Cliente Exemplo LTDA",
+            "cost_center": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+            "cost_center_name": "Departamento Comercial",
+            "order": 4,
+            "order_code": "#04",
+            "payment_transaction": null,
+            "description": "Receita bilhetagem",
+            "amount": "20.00",
+            "due_date": "2026-01-01",
+            "status": "pendente",
+            "created_at": "2025-12-01T10:59:12.862108-03:00",
+            "updated_at": "2025-12-01T10:59:12.862121-03:00"
+        }
+        // ... mais 7 itens
+    ],
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 8,
+        "has_next": false,
+        "has_previous": false
+    },
+    "available_filters": {
+        "type": ["incomes", "bills", "recurring_bills", "recurring_incomes", "recurring_bill_payments", "recurring_income_receipts"],
+        "search_fields": ["category", "cost_center", "description", "status", "contact"],
+        "search_format": "campo#valor (ex: category#vendas,cost_center#marketing)"
+    }
+}
+```
+
+### Exemplo: Recurring Bills
+
+```json
+{
+    "type": "recurring_bills",
+    "summary": {
+        "total_items": 4,
+        "total_amount": 898.0
+    },
+    "items": [
+        {
+            "id": "83e37e49-9b86-479c-a026-fe514bf94fad",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "company_name": "Startec Serviços e Tecnologia",
+            "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+            "category_name": "Despesas Operacionais",
+            "category_code": "2",
+            "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+            "cost_center_name": "Administracao",
+            "order": 1,
+            "order_code": "#01",
+            "description": "Assinatura mensal - Software",
+            "amount": "299.00",
+            "frequency": "monthly",
+            "start_date": "2025-10-29",
+            "end_date": null,
+            "next_due_date": "2026-01-03",
+            "is_active": true,
+            "created_at": "2025-11-28T12:39:31.644809-03:00",
+            "updated_at": "2025-12-03T01:17:41.602566-03:00"
+        }
+        // ... mais 3 itens
+    ],
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 4,
+        "has_next": false,
+        "has_previous": false
+    },
+    "available_filters": {
+        "type": ["incomes", "bills", "recurring_bills", "recurring_incomes", "recurring_bill_payments", "recurring_income_receipts"],
+        "search_fields": ["category", "cost_center", "description", "status", "contact"],
+        "search_format": "campo#valor (ex: category#vendas,cost_center#marketing)"
+    }
+}
+```
+
+### Exemplo: Recurring Bill Payments
+
+```json
+{
+    "type": "recurring_bill_payments",
+    "summary": {
+        "total_items": 0,
+        "total_amount": 0.0,
+        "pendente_count": 0,
+        "quitada_count": 0
+    },
+    "items": [],
+    "pagination": {
+        "page": 1,
+        "page_size": 10,
+        "total_pages": 1,
+        "total_items": 0,
+        "has_next": false,
+        "has_previous": false
+    },
+    "available_filters": {
+        "type": ["incomes", "bills", "recurring_bills", "recurring_incomes", "recurring_bill_payments", "recurring_income_receipts"],
+        "search_fields": ["category", "cost_center", "description", "status", "contact"],
+        "search_format": "campo#valor (ex: category#vendas,cost_center#marketing)"
+    }
+}
+```
+
+---
+
+## Resposta: Detalhes de Item Específico
+
+Quando `uuid` é fornecido, retorna detalhes completos do item.
+
+### Para Bills/Incomes
+
+```json
+{
+    "type": "bills",
+    "item": {
+        "id": "90764fed-4ba7-4e0b-9609-68c94d7184c6",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+        "category_name": "Despesas Operacionais",
+        "category_code": "2",
+        "contact": null,
+        "contact_name": null,
+        "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+        "cost_center_name": "Administracao",
+        "order": 2,
+        "order_code": "#02",
+        "payment_transaction": null,
+        "description": "Aluguel",
+        "amount": "2000.00",
+        "due_date": "2025-12-13",
+        "status": "a_vencer",
+        "created_at": "2025-11-28T12:39:31.620065-03:00",
+        "updated_at": "2025-11-28T12:39:31.620070-03:00"
+    }
+}
+```
+
+**Nota:** Se o bill/income tiver uma `payment_transaction` associada, ela será incluída no objeto `payment_transaction` com todos os detalhes da transação.
+
+### Para Recurring Bills
+
+```json
+{
+    "type": "recurring_bills",
+    "item": {
+        "id": "83e37e49-9b86-479c-a026-fe514bf94fad",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+        "category_name": "Despesas Operacionais",
+        "category_code": "2",
+        "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+        "cost_center_name": "Administracao",
+        "order": 1,
+        "order_code": "#01",
+        "description": "Assinatura mensal - Software",
+        "amount": "299.00",
+        "frequency": "monthly",
+        "start_date": "2025-10-29",
+        "end_date": null,
+        "next_due_date": "2026-01-03",
+        "is_active": true,
+        "created_at": "2025-11-28T12:39:31.644809-03:00",
+        "updated_at": "2025-12-03T01:17:41.602566-03:00"
+    },
+    "payments_summary": {
+        "total_payments": 12,
+        "pending_count": 6,
+        "paid_count": 6,
+        "total_pending": "6000.00",
+        "total_paid": "6000.00"
+    }
+}
+```
+
+### Para Recurring Incomes
+
+```json
+{
+    "type": "recurring_incomes",
+    "item": {
+        "id": "uuid-do-item",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "89d25e77-b85e-4f3a-8cc4-142c4ce8ed35",
+        "category_name": "Vendas",
+        "category_code": "1",
+        "cost_center": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+        "cost_center_name": "Departamento Comercial",
+        "order": 1,
+        "order_code": "#01",
+        "description": "Aluguel Recebido",
+        "amount": "2000.00",
+        "frequency": "monthly",
+        "start_date": "2025-01-01",
+        "end_date": null,
+        "next_due_date": "2025-02-01",
+        "is_active": true,
+        "created_at": "2025-01-01T10:00:00.000000-03:00",
+        "updated_at": "2025-01-01T10:00:00.000000-03:00"
+    },
+    "receipts_summary": {
+        "total_receipts": 12,
+        "pending_count": 4,
+        "received_count": 8,
+        "total_pending": "8000.00",
+        "total_received": "16000.00"
+    }
+}
+```
+
+### Para Recurring Bill Payments / Recurring Income Receipts
+
+```json
+{
+    "type": "recurring_bill_payments",
+    "item": {
+        "id": "uuid-do-pagamento",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "recurring_bill": "83e37e49-9b86-479c-a026-fe514bf94fad",
+        "recurring_bill_description": "Assinatura mensal - Software",
+        "category_code": "2",
+        "category_name": "Despesas Operacionais",
+        "transaction": "uuid-transacao-ou-null",
+        "due_date": "2025-12-03",
+        "paid_on": "2025-12-05",
+        "amount": "299.00",
+        "status": "quitada",
+        "created_at": "2025-11-28T12:39:31.644809-03:00",
+        "updated_at": "2025-12-05T10:00:00.000000-03:00"
+    },
+    "transaction": {
+        "id": "uuid-transacao",
+        "description": "Pagamento - Assinatura mensal - Software",
+        "amount": "299.00",
+        "type": "despesa",
+        "transaction_date": "2025-12-05",
+        "bank_account": "uuid-conta",
+        "bank_account_name": "Conta Principal"
+        // ... demais campos do TransactionSerializer
+    }
+}
+```
+
+**Nota:** O campo `transaction` só será incluído se o pagamento/recebimento tiver uma transação associada.
+
+---
+
+## Cache Redis
+
+- Resultados são cacheados por **60 segundos** no Redis
+- A chave de cache é gerada baseada em:
+  - ID da empresa
+  - Tipo de dado
+  - Todos os parâmetros de filtro
+- Cache é automaticamente invalidado quando parâmetros mudam
+- Consultas por UUID específico **não são cacheadas**
+
+---
+
+## Exemplos de Uso
+
+### 1. Listar todas as bills pendentes
+
+```bash
+GET /api/v1/financials/data/?type=bills&status=pendente
+```
+
+### 2. Listar incomes de uma categoria específica
+
+```bash
+GET /api/v1/financials/data/?type=incomes&category_id=uuid-categoria
+```
+
+### 3. Buscar recurring bill payments por centro de custo
+
+```bash
+GET /api/v1/financials/data/?type=recurring_bill_payments&search=cost_center#administracao
+```
+
+### 4. Listar bills com filtro de data
+
+```bash
+GET /api/v1/financials/data/?type=bills&date_from=2024-01-01&date_to=2024-01-31
+```
+
+### 5. Ver detalhes de um item específico
+
+```bash
+GET /api/v1/financials/data/?type=bills&uuid=uuid-do-item
+```
+
+### 6. Paginação - página 2
+
+```bash
+GET /api/v1/financials/data/?type=incomes&page=2
+```
+
+### 7. Busca combinada complexa
+
+```bash
+GET /api/v1/financials/data/?type=bills&status=pendente&search=category#operacional,description#aluguel&date_from=2024-01-01
+```
+
+---
+
+## Códigos de Status HTTP
+
+| Código | Descrição |
+|--------|-----------|
+| 200 OK | Requisição bem-sucedida |
+| 400 Bad Request | Parâmetro 'type' ausente ou inválido |
+| 401 Unauthorized | Token de autenticação inválido |
+| 404 Not Found | UUID não encontrado |
+
+---
+
+## Notas Importantes
+
+1. **Performance**: Use filtros específicos para melhorar a performance. Evite listar todos os itens sem filtros.
+
+2. **Paginação**: Sempre verifique `has_next` e `has_previous` para navegação.
+
+3. **Summary**: O resumo (`summary`) sempre mostra totais do queryset filtrado, não apenas da página atual.
+
+4. **Recurring Payments/Receipts**: Esses tipos são as instâncias individuais das contas recorrentes, úteis para visualizar histórico de pagamentos.
+
+5. **Cache**: Se dados não estão atualizados, aguarde até 60 segundos ou use parâmetros diferentes para forçar nova consulta.
+
+6. **Busca por Nome**: Use `search=category#nome` ou `search=cost_center#nome` para buscar por nome parcial (case-insensitive).
+
+7. **Status de Bills**: Bills usam `a_vencer` e `quitada` como status, não `pendente`. Incomes usam `pendente` e `recebido`.
+
