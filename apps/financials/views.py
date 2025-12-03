@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.core.cache import cache
 from django.db import transaction as db_transaction
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Case, When, IntegerField
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -37,6 +37,7 @@ from .serializers import (
     BillSerializer,
     CashRegisterSerializer,
     CategorySerializer,
+    FinancialDataTransactionSerializer,
     IncomePaymentSerializer,
     IncomeSerializer,
     RecurringBillSerializer,
@@ -716,14 +717,14 @@ class IncomeViewSet(CompanyScopedViewSet):
 
 class RecurringBillViewSet(CompanyScopedViewSet):
     queryset = RecurringBill.objects.all().select_related(
-        "company", "category", "cost_center"
+        "company", "category", "cost_center", "contact"
     )
     serializer_class = RecurringBillSerializer
 
 
 class RecurringIncomeViewSet(CompanyScopedViewSet):
     queryset = RecurringIncome.objects.all().select_related(
-        "company", "category", "cost_center"
+        "company", "category", "cost_center", "contact"
     )
     serializer_class = RecurringIncomeSerializer
 
@@ -786,7 +787,18 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
     Resultados são cacheados por 60 segundos no Redis para melhorar performance.
     O cache é invalidado automaticamente quando os parâmetros de busca mudam.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsCompanyMember]
+    
+    def get_serializer_context(self):
+        """Retorna o contexto para serializers."""
+        context = {
+            "request": self.request,
+        }
+        try:
+            context["company"] = self.get_active_company()
+        except (ValidationError, PermissionDenied):
+            pass
+        return context
     
     VALID_TYPES = {
         "incomes": {
@@ -806,26 +818,26 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
         "recurring_bills": {
             "model": RecurringBill,
             "serializer": RecurringBillSerializer,
-            "select_related": ["company", "category", "cost_center"],
+            "select_related": ["company", "category", "cost_center", "contact"],
             "has_status": False,
         },
         "recurring_incomes": {
             "model": RecurringIncome,
             "serializer": RecurringIncomeSerializer,
-            "select_related": ["company", "category", "cost_center"],
+            "select_related": ["company", "category", "cost_center", "contact"],
             "has_status": False,
         },
         "recurring_bill_payments": {
             "model": RecurringBillPayment,
             "serializer": RecurringBillPaymentSerializer,
-            "select_related": ["company", "recurring_bill", "recurring_bill__category", "recurring_bill__cost_center", "transaction", "transaction__bank_account"],
+            "select_related": ["company", "recurring_bill", "recurring_bill__category", "recurring_bill__cost_center", "recurring_bill__contact", "transaction", "transaction__bank_account"],
             "has_status": True,
             "status_field": "status",
         },
         "recurring_income_receipts": {
             "model": RecurringIncomeReceipt,
             "serializer": RecurringIncomeReceiptSerializer,
-            "select_related": ["company", "recurring_income", "recurring_income__category", "recurring_income__cost_center", "transaction", "transaction__bank_account"],
+            "select_related": ["company", "recurring_income", "recurring_income__category", "recurring_income__cost_center", "recurring_income__contact", "transaction", "transaction__bank_account"],
             "has_status": True,
             "status_field": "status",
         },
@@ -963,14 +975,68 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
         
         return queryset
     
-    def _get_ordering(self, data_type: str) -> list:
-        """Retorna a ordenação apropriada para cada tipo."""
-        if data_type in ["recurring_bill_payments", "recurring_income_receipts"]:
-            return ["-due_date", "-id"]
+    def _get_ordering(self, data_type: str, queryset):
+        """
+        Aplica ordenação apropriada para cada tipo.
+        Ordena por: status pendente primeiro, depois por próximo vencimento (crescente).
+        """
+        config = self.VALID_TYPES[data_type]
+        
+        if data_type in ["bills"]:
+            # Bills: pendente primeiro, depois por due_date crescente
+            queryset = queryset.annotate(
+                status_order=Case(
+                    When(status=Bill.Status.A_VENCER, then=0),
+                    When(status=Bill.Status.QUITADA, then=1),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            )
+            return queryset.order_by("status_order", "due_date", "id")
+        
+        elif data_type in ["incomes"]:
+            # Incomes: pendente primeiro, depois por due_date crescente
+            queryset = queryset.annotate(
+                status_order=Case(
+                    When(status=Income.Status.PENDENTE, then=0),
+                    When(status=Income.Status.RECEBIDO, then=1),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            )
+            return queryset.order_by("status_order", "due_date", "id")
+        
+        elif data_type in ["recurring_bill_payments"]:
+            # Payments: pendente primeiro, depois por due_date crescente
+            queryset = queryset.annotate(
+                status_order=Case(
+                    When(status=RecurringBillPayment.Status.PENDENTE, then=0),
+                    When(status=RecurringBillPayment.Status.QUITADA, then=1),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            )
+            return queryset.order_by("status_order", "due_date", "id")
+        
+        elif data_type in ["recurring_income_receipts"]:
+            # Receipts: pendente primeiro, depois por due_date crescente
+            queryset = queryset.annotate(
+                status_order=Case(
+                    When(status=RecurringIncomeReceipt.Status.PENDENTE, then=0),
+                    When(status=RecurringIncomeReceipt.Status.RECEBIDO, then=1),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            )
+            return queryset.order_by("status_order", "due_date", "id")
+        
         elif data_type in ["recurring_bills", "recurring_incomes"]:
-            return ["-next_due_date", "-id"]
+            # Recurring bills/incomes: ordenar por next_due_date crescente (mais próximo primeiro)
+            return queryset.order_by("next_due_date", "id")
+        
         else:
-            return ["-due_date", "-created_at", "-id"]
+            # Fallback: ordenar por due_date crescente
+            return queryset.order_by("due_date", "id")
     
     def _get_detail_response(self, instance, data_type: str, request) -> dict:
         """Retorna detalhes completos de um item específico."""
@@ -1016,7 +1082,7 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
             today = timezone.localdate()
             next_payments = (
                 payments.filter(due_date__gte=today)
-                .select_related("recurring_bill", "recurring_bill__category", "transaction", "transaction__bank_account")
+                .select_related("recurring_bill", "recurring_bill__category", "recurring_bill__contact", "transaction", "transaction__bank_account")
                 .order_by("due_date", "id")
                 [:5]
             )
@@ -1045,7 +1111,7 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
             today = timezone.localdate()
             next_receipts = (
                 receipts.filter(due_date__gte=today)
-                .select_related("recurring_income", "recurring_income__category", "transaction", "transaction__bank_account")
+                .select_related("recurring_income", "recurring_income__category", "recurring_income__contact", "transaction", "transaction__bank_account")
                 .order_by("due_date", "id")
                 [:5]
             )
@@ -1162,7 +1228,7 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
         # Construir queryset
         queryset = config["model"].objects.select_related(*config["select_related"])
         queryset = self._apply_filters(queryset, data_type, request)
-        queryset = queryset.order_by(*self._get_ordering(data_type))
+        queryset = self._get_ordering(data_type, queryset)
         
         # Gerar resumo (antes da paginação)
         summary = self._get_summary(queryset, data_type)
@@ -1214,3 +1280,177 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
             "summary": summary,
             "items": serializer.data,
         })
+    
+    def post(self, request):
+        """
+        POST /api/v1/financials/data/
+        
+        Cria uma transação a partir de um item financeiro (bill, income, recurring_bill_payment, recurring_income_receipt).
+        
+        Body:
+        -----
+        {
+            "uuid": "uuid-do-item",
+            "type": "bills" | "incomes" | "recurring_bill_payments" | "recurring_income_receipts",
+            "bank_account": "uuid-da-conta-bancaria",
+            "transaction_date": "YYYY-MM-DD",
+            "description": "Descrição opcional",
+            "payment_method": "uuid-do-metodo-pagamento (opcional)"
+        }
+        
+        Response:
+        ---------
+        Retorna o item atualizado com a transação criada.
+        """
+        serializer = FinancialDataTransactionSerializer(
+            data=request.data,
+            context=self.get_serializer_context()
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        
+        item_uuid = data["uuid"]
+        item_type = data["type"]
+        company = self.get_active_company()
+        
+        # Validar tipo
+        if item_type not in self.VALID_TYPES:
+            return Response(
+                {
+                    "error": f"Tipo '{item_type}' inválido.",
+                    "valid_types": ["bills", "incomes", "recurring_bill_payments", "recurring_income_receipts"],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        config = self.VALID_TYPES[item_type]
+        
+        # Buscar o item
+        try:
+            item = config["model"].objects.select_related(
+                *config["select_related"]
+            ).get(id=item_uuid, company=company)
+        except config["model"].DoesNotExist:
+            return Response(
+                {"error": f"Item não encontrado com UUID: {item_uuid}"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        # Verificar se já tem transação
+        if item_type == "bills":
+            if item.status == Bill.Status.QUITADA:
+                return Response(
+                    {"error": "Esta conta já foi quitada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if item.payment_transaction:
+                return Response(
+                    {"error": "Esta conta já possui uma transação de pagamento."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        elif item_type == "incomes":
+            if item.status == Income.Status.RECEBIDO:
+                return Response(
+                    {"error": "Esta conta já foi recebida."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if item.payment_transaction:
+                return Response(
+                    {"error": "Esta conta já possui uma transação de recebimento."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        elif item_type == "recurring_bill_payments":
+            if item.status == RecurringBillPayment.Status.QUITADA:
+                return Response(
+                    {"error": "Este pagamento já foi quitado."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if item.transaction:
+                return Response(
+                    {"error": "Este pagamento já possui uma transação."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        elif item_type == "recurring_income_receipts":
+            if item.status == RecurringIncomeReceipt.Status.RECEBIDO:
+                return Response(
+                    {"error": "Este recebimento já foi recebido."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if item.transaction:
+                return Response(
+                    {"error": "Este recebimento já possui uma transação."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        
+        # Extrair dados do item para pré-preencher a transação
+        with db_transaction.atomic():
+            # Determinar tipo de transação e descrição
+            if item_type in ["bills", "recurring_bill_payments"]:
+                transaction_type = Transaction.Types.DESPESA
+                if item_type == "bills":
+                    default_description = f"Pagamento - {item.description}"
+                    category = item.category
+                    cost_center = item.cost_center
+                    contact = item.contact
+                else:  # recurring_bill_payments
+                    default_description = f"Pagamento - {item.recurring_bill.description}"
+                    category = item.recurring_bill.category
+                    cost_center = item.recurring_bill.cost_center
+                    contact = item.recurring_bill.contact
+            else:  # incomes, recurring_income_receipts
+                transaction_type = Transaction.Types.RECEITA
+                if item_type == "incomes":
+                    default_description = f"Recebimento - {item.description}"
+                    category = item.category
+                    cost_center = item.cost_center
+                    contact = item.contact
+                else:  # recurring_income_receipts
+                    default_description = f"Recebimento - {item.recurring_income.description}"
+                    category = item.recurring_income.category
+                    cost_center = item.recurring_income.cost_center
+                    contact = item.recurring_income.contact
+            
+            description = data.get("description") or default_description
+            
+            # Criar transação
+            # Nota: O método save() do modelo Transaction automaticamente atualiza
+            # o current_balance da conta bancária através de _sync_bank_account_balance()
+            transaction = Transaction.objects.create(
+                company=company,
+                bank_account=data["bank_account"],
+                category=category,
+                cost_center=cost_center,
+                contact=contact,
+                payment_method=data.get("payment_method"),
+                description=description,
+                amount=item.amount,
+                type=transaction_type,
+                transaction_date=data["transaction_date"],
+            )
+            
+            # Atualizar o item
+            if item_type == "bills":
+                item.payment_transaction = transaction
+                item.status = Bill.Status.QUITADA
+                item.save(update_fields=["payment_transaction", "status", "updated_at"])
+            elif item_type == "incomes":
+                item.payment_transaction = transaction
+                item.status = Income.Status.RECEBIDO
+                item.save(update_fields=["payment_transaction", "status", "updated_at"])
+            elif item_type == "recurring_bill_payments":
+                item.transaction = transaction
+                item.status = RecurringBillPayment.Status.QUITADA
+                item.paid_on = data["transaction_date"]
+                item.save(update_fields=["transaction", "status", "paid_on", "updated_at"])
+            elif item_type == "recurring_income_receipts":
+                item.transaction = transaction
+                item.status = RecurringIncomeReceipt.Status.RECEBIDO
+                item.received_on = data["transaction_date"]
+                item.save(update_fields=["transaction", "status", "received_on", "updated_at"])
+        
+        # Retornar detalhes atualizados do item
+        item.refresh_from_db()
+        return Response(
+            self._get_detail_response(item, item_type, request),
+            status=status.HTTP_201_CREATED,
+        )

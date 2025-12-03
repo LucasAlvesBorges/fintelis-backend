@@ -967,6 +967,29 @@ GET /api/v1/financials/data/?type=bills&status=pendente&search=category#operacio
 
 ---
 
+## Ordenação
+
+A API sempre ordena os resultados da seguinte forma:
+
+### Para Bills, Incomes, RecurringBillPayments e RecurringIncomeReceipts:
+1. **Status pendente primeiro**: Itens com status pendente (`a_vencer` para bills, `pendente` para incomes/payments/receipts) aparecem primeiro
+2. **Ordenados por vencimento**: Dentro de cada grupo de status, os itens são ordenados por `due_date` crescente (próximo vencimento primeiro)
+3. **Quitados/Recebidos no final**: Itens quitados/recebidos aparecem após todos os pendentes, também ordenados por vencimento
+
+**Exemplo de ordenação para Bills:**
+- Posição 1-5: Bills com status `a_vencer`, ordenados por `due_date` crescente
+- Posição 6-10: Bills com status `quitada`, ordenados por `due_date` crescente
+
+### Para RecurringBills e RecurringIncomes:
+- Ordenados por `next_due_date` crescente (próximo vencimento primeiro)
+
+**Comportamento:**
+- A ordenação é aplicada automaticamente em todas as listagens
+- Não é possível alterar a ordenação via parâmetros
+- A ordenação garante que itens mais urgentes (pendentes com vencimento próximo) apareçam primeiro
+
+---
+
 ## Notas Importantes
 
 1. **Performance**: Use filtros específicos para melhorar a performance. Evite listar todos os itens sem filtros.

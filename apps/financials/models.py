@@ -770,6 +770,13 @@ class RecurringBill(TimeStampedModel):
         null=True,
         blank=True,
     )
+    contact = models.ForeignKey(
+        "contacts.Contact",
+        on_delete=models.SET_NULL,
+        related_name="recurring_bills",
+        null=True,
+        blank=True,
+    )
     order = models.PositiveIntegerField(null=True, editable=False)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
@@ -972,6 +979,13 @@ class RecurringIncome(TimeStampedModel):
         null=True,
         blank=True,
     )
+    contact = models.ForeignKey(
+        "contacts.Contact",
+        on_delete=models.SET_NULL,
+        related_name="recurring_incomes",
+        null=True,
+        blank=True,
+    )
     order = models.PositiveIntegerField(null=True, editable=False)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=15, decimal_places=2)
@@ -1004,6 +1018,8 @@ class RecurringIncome(TimeStampedModel):
                 )
         if self.cost_center and self.cost_center.company_id != self.company_id:
             errors["cost_center"] = "Cost center must belong to the same company."
+        if self.contact and self.contact.company_id != self.company_id:
+            errors["contact"] = "Contact must belong to the same company."
         if self.end_date and self.end_date < self.start_date:
             errors["end_date"] = "End date cannot be earlier than the start date."
         if self.next_due_date < self.start_date:

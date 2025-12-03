@@ -17,6 +17,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.companies.models import Company
+from apps.contacts.models import Contact
 from apps.financials.models import (
     Category,
     RecurringBill,
@@ -118,10 +119,33 @@ class Command(BaseCommand):
                 company=company, name="Vendas", type=Category.Types.RECEITA
             )
 
+        # Buscar contacts (fornecedores para bills, clientes para incomes)
+        all_contacts = list(Contact.objects.filter(company=company))
+        
+        if not all_contacts:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Nenhum contato encontrado. Recurring bills e incomes serão criados sem contact."
+                )
+            )
+            supplier_contacts = []
+            customer_contacts = []
+        else:
+            # Distribuir contacts: primeiros para bills (fornecedores), restantes para incomes (clientes)
+            mid_point = len(all_contacts) // 2
+            supplier_contacts = all_contacts[:mid_point] if mid_point > 0 else all_contacts[:1]
+            customer_contacts = all_contacts[mid_point:] if mid_point > 0 else all_contacts[:1]
+            
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"✓ Encontrados {len(all_contacts)} contatos: {len(supplier_contacts)} para bills, {len(customer_contacts)} para incomes"
+                )
+            )
+
         with transaction.atomic():
             # Criar Recurring Bills
             recurring_bills = self._create_recurring_bills(
-                company, expense_category, months
+                company, expense_category, months, supplier_contacts
             )
             self.stdout.write(
                 self.style.SUCCESS(
@@ -131,7 +155,7 @@ class Command(BaseCommand):
 
             # Criar Recurring Incomes
             recurring_incomes = self._create_recurring_incomes(
-                company, revenue_category, months
+                company, revenue_category, months, customer_contacts
             )
             self.stdout.write(
                 self.style.SUCCESS(
@@ -151,10 +175,11 @@ class Command(BaseCommand):
             f"   - {len(recurring_incomes)} Recurring Incomes com receipts"
         )
 
-    def _create_recurring_bills(self, company, category, months):
+    def _create_recurring_bills(self, company, category, months, contacts=None):
         """Cria recurring bills com payments."""
         today = timezone.localdate()
         start_date = today - timedelta(days=months * 30)
+        contacts = contacts or []
 
         recurring_bills_data = [
             {
@@ -163,6 +188,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.MONTHLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": 0,  # Índice do contact a usar
             },
             {
                 "description": "Internet mensal",
@@ -170,6 +196,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.MONTHLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": 0,
             },
             {
                 "description": "Aluguel mensal",
@@ -177,6 +204,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.MONTHLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": 1,
             },
             {
                 "description": "Folha de pagamento",
@@ -184,6 +212,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.MONTHLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": None,  # Sem contact (interno)
             },
             {
                 "description": "Manutenção trimestral - Equipamentos",
@@ -191,6 +220,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.QUARTERLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": 2,
             },
         ]
 
@@ -201,9 +231,17 @@ class Command(BaseCommand):
                 data["start_date"], data["frequency"], today
             )
 
+            # Selecionar contact se disponível
+            contact = None
+            if data.get("contact_index") is not None and contacts:
+                contact_index = data["contact_index"] % len(contacts) if contacts else None
+                if contact_index is not None:
+                    contact = contacts[contact_index]
+
             recurring_bill = RecurringBill.objects.create(
                 company=company,
                 category=category,
+                contact=contact,
                 description=data["description"],
                 amount=data["amount"],
                 frequency=data["frequency"],
@@ -219,10 +257,11 @@ class Command(BaseCommand):
 
         return recurring_bills
 
-    def _create_recurring_incomes(self, company, category, months):
+    def _create_recurring_incomes(self, company, category, months, contacts=None):
         """Cria recurring incomes com receipts."""
         today = timezone.localdate()
         start_date = today - timedelta(days=months * 30)
+        contacts = contacts or []
 
         recurring_incomes_data = [
             {
@@ -231,6 +270,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.MONTHLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": 0,  # Índice do contact a usar
             },
             {
                 "description": "Receita recorrente - Cliente Premium",
@@ -238,6 +278,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.MONTHLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": 0,
             },
             {
                 "description": "Licenciamento anual - Software",
@@ -245,6 +286,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.YEARLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": 1,
             },
             {
                 "description": "Receita semanal - Serviços",
@@ -252,6 +294,7 @@ class Command(BaseCommand):
                 "frequency": FrequencyChoices.WEEKLY,
                 "start_date": start_date,
                 "end_date": None,
+                "contact_index": None,  # Sem contact específico
             },
         ]
 
@@ -262,9 +305,17 @@ class Command(BaseCommand):
                 data["start_date"], data["frequency"], today
             )
 
+            # Selecionar contact se disponível
+            contact = None
+            if data.get("contact_index") is not None and contacts:
+                contact_index = data["contact_index"] % len(contacts) if contacts else None
+                if contact_index is not None:
+                    contact = contacts[contact_index]
+
             recurring_income = RecurringIncome.objects.create(
                 company=company,
                 category=category,
+                contact=contact,
                 description=data["description"],
                 amount=data["amount"],
                 frequency=data["frequency"],

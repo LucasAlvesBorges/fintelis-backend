@@ -418,11 +418,12 @@ class IncomeSerializer(CompanyScopedModelSerializer):
 
 
 class RecurringBillSerializer(CompanyScopedModelSerializer):
-    company_filtered_fields = ("category", "cost_center")
+    company_filtered_fields = ("category", "cost_center", "contact")
     company_name = serializers.CharField(source="company.name", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
     category_code = serializers.CharField(source="category.code", read_only=True, allow_null=True)
     cost_center_name = serializers.CharField(source="cost_center.name", read_only=True, allow_null=True)
+    contact_name = serializers.CharField(source="contact.name", read_only=True, allow_null=True)
     order_code = serializers.CharField(read_only=True)
 
     class Meta:
@@ -436,6 +437,8 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
             "category_code",
             "cost_center",
             "cost_center_name",
+            "contact",
+            "contact_name",
             "order",
             "order_code",
             "description",
@@ -455,6 +458,7 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
             "category_name",
             "category_code",
             "cost_center_name",
+            "contact_name",
             "order",
             "order_code",
             "created_at",
@@ -507,11 +511,12 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
 
 
 class RecurringIncomeSerializer(CompanyScopedModelSerializer):
-    company_filtered_fields = ("category", "cost_center")
+    company_filtered_fields = ("category", "cost_center", "contact")
     company_name = serializers.CharField(source="company.name", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True, allow_null=True)
     category_code = serializers.CharField(source="category.code", read_only=True, allow_null=True)
     cost_center_name = serializers.CharField(source="cost_center.name", read_only=True, allow_null=True)
+    contact_name = serializers.CharField(source="contact.name", read_only=True, allow_null=True)
     order_code = serializers.CharField(read_only=True)
 
     class Meta:
@@ -525,6 +530,8 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
             "category_code",
             "cost_center",
             "cost_center_name",
+            "contact",
+            "contact_name",
             "order",
             "order_code",
             "description",
@@ -544,6 +551,7 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
             "category_name",
             "category_code",
             "cost_center_name",
+            "contact_name",
             "order",
             "order_code",
             "created_at",
@@ -701,13 +709,16 @@ class TransferSerializer(CompanyScopedSerializer):
 class RecurringBillPaymentSerializer(CompanyScopedModelSerializer):
     """
     Serializer para RecurringBillPayment.
-    Inclui category_code através do relacionamento com recurring_bill.
+    Inclui category_code e contact_name através do relacionamento com recurring_bill.
     """
     category_code = serializers.CharField(
         source="recurring_bill.category.code", read_only=True, allow_null=True
     )
     category_name = serializers.CharField(
         source="recurring_bill.category.name", read_only=True, allow_null=True
+    )
+    contact_name = serializers.CharField(
+        source="recurring_bill.contact.name", read_only=True, allow_null=True
     )
     recurring_bill_description = serializers.CharField(
         source="recurring_bill.description", read_only=True
@@ -722,6 +733,7 @@ class RecurringBillPaymentSerializer(CompanyScopedModelSerializer):
             "recurring_bill_description",
             "category_code",
             "category_name",
+            "contact_name",
             "transaction",
             "due_date",
             "paid_on",
@@ -736,6 +748,7 @@ class RecurringBillPaymentSerializer(CompanyScopedModelSerializer):
             "recurring_bill_description",
             "category_code",
             "category_name",
+            "contact_name",
             "created_at",
             "updated_at",
         )
@@ -744,13 +757,16 @@ class RecurringBillPaymentSerializer(CompanyScopedModelSerializer):
 class RecurringIncomeReceiptSerializer(CompanyScopedModelSerializer):
     """
     Serializer para RecurringIncomeReceipt.
-    Inclui category_code através do relacionamento com recurring_income.
+    Inclui category_code e contact_name através do relacionamento com recurring_income.
     """
     category_code = serializers.CharField(
         source="recurring_income.category.code", read_only=True, allow_null=True
     )
     category_name = serializers.CharField(
         source="recurring_income.category.name", read_only=True, allow_null=True
+    )
+    contact_name = serializers.CharField(
+        source="recurring_income.contact.name", read_only=True, allow_null=True
     )
     recurring_income_description = serializers.CharField(
         source="recurring_income.description", read_only=True
@@ -765,6 +781,7 @@ class RecurringIncomeReceiptSerializer(CompanyScopedModelSerializer):
             "recurring_income_description",
             "category_code",
             "category_name",
+            "contact_name",
             "transaction",
             "due_date",
             "received_on",
@@ -779,6 +796,32 @@ class RecurringIncomeReceiptSerializer(CompanyScopedModelSerializer):
             "recurring_income_description",
             "category_code",
             "category_name",
+            "contact_name",
             "created_at",
             "updated_at",
         )
+
+
+class FinancialDataTransactionSerializer(CompanyScopedSerializer):
+    """
+    Serializer para criar transações a partir de itens financeiros.
+    """
+    company_filtered_fields = ("bank_account",)
+    
+    uuid = serializers.UUIDField(required=True)
+    type = serializers.ChoiceField(
+        choices=["bills", "incomes", "recurring_bill_payments", "recurring_income_receipts"],
+        required=True
+    )
+    bank_account = serializers.PrimaryKeyRelatedField(
+        queryset=BankAccount.objects.all(),
+        required=True
+    )
+    transaction_date = serializers.DateField(required=True)
+    description = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+    payment_method = serializers.PrimaryKeyRelatedField(
+        queryset=PaymentMethod.objects.all(),
+        required=False, allow_null=True
+    )
