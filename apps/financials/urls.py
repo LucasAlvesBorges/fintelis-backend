@@ -9,6 +9,7 @@ from .views import (
     CategoryViewSet,
     FinancialDataView,
     IncomeViewSet,
+    PaymentMethodViewSet,
     RecurringBillViewSet,
     RecurringIncomeViewSet,
     TransactionViewSet,
@@ -19,6 +20,7 @@ router.register('banks', BankViewSet, basename='banks')
 router.register('bank-accounts', BankAccountViewSet, basename='bank-accounts')
 router.register('cash-registers', CashRegisterViewSet, basename='cash-registers')
 router.register('categories', CategoryViewSet, basename='categories')
+router.register('payment-methods', PaymentMethodViewSet, basename='payment-methods')
 router.register('transactions', TransactionViewSet, basename='transactions')
 router.register('bills', BillViewSet, basename='bills')
 router.register('incomes', IncomeViewSet, basename='incomes')
