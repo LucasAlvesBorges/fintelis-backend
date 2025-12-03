@@ -309,7 +309,13 @@ Quando `uuid` não é fornecido, retorna lista paginada com 10 itens.
 
 Quando `uuid` é fornecido, retorna detalhes completos do item.
 
-### Para Bills/Incomes
+**Endpoint:** `GET /api/v1/financials/data/?type={tipo}&uuid={uuid}`
+
+---
+
+### 1. Bills (Contas a Pagar)
+
+#### Bill sem pagamento (status: a_vencer)
 
 ```json
 {
@@ -338,9 +344,188 @@ Quando `uuid` é fornecido, retorna detalhes completos do item.
 }
 ```
 
-**Nota:** Se o bill/income tiver uma `payment_transaction` associada, ela será incluída no objeto `payment_transaction` com todos os detalhes da transação.
+#### Bill com pagamento (status: quitada)
 
-### Para Recurring Bills
+```json
+{
+    "type": "bills",
+    "item": {
+        "id": "6d2d6c75-ce74-4470-8ac8-18715238b633",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+        "category_name": "Despesas Operacionais",
+        "category_code": "2",
+        "contact": "c081a2d2-3dbb-4cf1-b662-32ce1d4c6540",
+        "contact_name": "Fornecedor Exemplo ME",
+        "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+        "cost_center_name": "Administracao",
+        "order": 3,
+        "order_code": "#03",
+        "payment_transaction": "839da62c-d4dd-45ac-88c3-410ac65a20ee",
+        "description": "Fornecedor - Material",
+        "amount": "1200.00",
+        "due_date": "2025-11-23",
+        "status": "quitada",
+        "created_at": "2025-11-28T12:39:31.622777-03:00",
+        "updated_at": "2025-11-28T12:39:31.622783-03:00"
+    },
+    "payment_transaction": {
+        "id": "839da62c-d4dd-45ac-88c3-410ac65a20ee",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+        "bank_account_name": "Conta Principal",
+        "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+        "category_name": "Despesas Operacionais",
+        "cash_register": null,
+        "cash_register_name": null,
+        "contact": "c081a2d2-3dbb-4cf1-b662-32ce1d4c6540",
+        "contact_name": "Fornecedor Exemplo ME",
+        "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+        "cost_center_name": "Administracao",
+        "payment_method": "809f3d50-026a-4ec2-8efc-e642b384eaf2",
+        "payment_method_name": "Boleto",
+        "order": 5,
+        "order_code": "#05",
+        "related_transaction": null,
+        "linked_transaction": null,
+        "description": "Pagamento - Fornecedor - Material",
+        "amount": "1200.00",
+        "type": "despesa",
+        "transaction_date": "2025-11-23",
+        "created_at": "2025-11-28T12:39:31.626191-03:00",
+        "updated_at": "2025-11-28T12:39:31.626196-03:00"
+    }
+}
+```
+
+**Campos do `item` (Bill):**
+- `id` (UUID): Identificador único
+- `company` (UUID): ID da empresa
+- `company_name` (String): Nome da empresa
+- `category` (UUID): ID da categoria
+- `category_name` (String): Nome da categoria
+- `category_code` (String): Código da categoria
+- `contact` (UUID|null): ID do contato (fornecedor)
+- `contact_name` (String|null): Nome do contato
+- `cost_center` (UUID|null): ID do centro de custo
+- `cost_center_name` (String|null): Nome do centro de custo
+- `order` (Integer|null): Número da ordem
+- `order_code` (String|null): Código da ordem (ex: "#02")
+- `payment_transaction` (UUID|null): ID da transação de pagamento (se quitada)
+- `description` (String): Descrição da conta
+- `amount` (Decimal): Valor da conta
+- `due_date` (Date): Data de vencimento
+- `status` (String): Status da conta (`a_vencer` ou `quitada`)
+- `created_at` (DateTime): Data de criação
+- `updated_at` (DateTime): Data de última atualização
+
+**Campos do `payment_transaction` (quando presente):**
+- Todos os campos da transação completa, incluindo:
+  - `bank_account` e `bank_account_name`: Conta bancária usada
+  - `payment_method` e `payment_method_name`: Método de pagamento
+  - `transaction_date`: Data da transação
+  - `type`: Tipo da transação (`despesa`)
+
+---
+
+### 2. Incomes (Contas a Receber)
+
+#### Income sem recebimento (status: pendente)
+
+```json
+{
+    "type": "incomes",
+    "item": {
+        "id": "eb44c66f-ded0-4e1e-8a14-e1da59d249ba",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "89d25e77-b85e-4f3a-8cc4-142c4ce8ed35",
+        "category_name": "Vendas",
+        "category_code": "1",
+        "contact": "0c9ce895-09eb-4128-bd44-959c5616ffc9",
+        "contact_name": "Cliente Exemplo LTDA",
+        "cost_center": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+        "cost_center_name": "Departamento Comercial",
+        "order": 4,
+        "order_code": "#04",
+        "payment_transaction": null,
+        "description": "Receita bilhetagem",
+        "amount": "20.00",
+        "due_date": "2026-01-01",
+        "status": "pendente",
+        "created_at": "2025-12-01T10:59:12.862108-03:00",
+        "updated_at": "2025-12-01T10:59:12.862121-03:00"
+    }
+}
+```
+
+#### Income com recebimento (status: recebido)
+
+```json
+{
+    "type": "incomes",
+    "item": {
+        "id": "6e4ab2a7-5092-4073-bde3-43799ef899f3",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "89d25e77-b85e-4f3a-8cc4-142c4ce8ed35",
+        "category_name": "Vendas",
+        "category_code": "1",
+        "contact": "0c9ce895-09eb-4128-bd44-959c5616ffc9",
+        "contact_name": "Cliente Exemplo LTDA",
+        "cost_center": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+        "cost_center_name": "Departamento Comercial",
+        "order": 3,
+        "order_code": "#03",
+        "payment_transaction": "2f694a6b-691e-4c0b-89de-d9b1b9b368e3",
+        "description": "Recebimento antecipado",
+        "amount": "6000.00",
+        "due_date": "2025-11-25",
+        "status": "recebido",
+        "created_at": "2025-11-28T12:39:31.636624-03:00",
+        "updated_at": "2025-11-28T12:39:31.636628-03:00"
+    },
+    "payment_transaction": {
+        "id": "2f694a6b-691e-4c0b-89de-d9b1b9b368e3",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+        "bank_account_name": "Conta Principal",
+        "category": "89d25e77-b85e-4f3a-8cc4-142c4ce8ed35",
+        "category_name": "Vendas",
+        "cash_register": null,
+        "cash_register_name": null,
+        "contact": "0c9ce895-09eb-4128-bd44-959c5616ffc9",
+        "contact_name": "Cliente Exemplo LTDA",
+        "cost_center": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+        "cost_center_name": "Departamento Comercial",
+        "payment_method": "c32ebfed-fe56-4f84-98e3-5580c14e1241",
+        "payment_method_name": "Pix",
+        "order": 6,
+        "order_code": "#06",
+        "related_transaction": null,
+        "linked_transaction": null,
+        "description": "Recebimento - Recebimento antecipado",
+        "amount": "6000.00",
+        "type": "receita",
+        "transaction_date": "2025-11-22",
+        "created_at": "2025-11-28T12:39:31.639855-03:00",
+        "updated_at": "2025-11-28T15:17:57.220733-03:00"
+    }
+}
+```
+
+**Campos do `item` (Income):**
+- Mesma estrutura do Bill, mas com `status` sendo `pendente` ou `recebido`
+- `payment_transaction` contém a transação de recebimento quando `status = recebido`
+
+**Campos do `payment_transaction` (quando presente):**
+- `type`: Sempre `receita` para incomes
+- Demais campos similares ao Bill
+
+### 3. Recurring Bills (Contas Recorrentes a Pagar)
 
 ```json
 {
@@ -367,16 +552,92 @@ Quando `uuid` é fornecido, retorna detalhes completos do item.
         "updated_at": "2025-12-03T01:17:41.602566-03:00"
     },
     "payments_summary": {
-        "total_payments": 12,
-        "pending_count": 6,
-        "paid_count": 6,
-        "total_pending": "6000.00",
-        "total_paid": "6000.00"
-    }
+        "total_payments": 0,
+        "pending_count": 0,
+        "paid_count": 0,
+        "total_pending": 0.0,
+        "total_paid": 0.0
+    },
+    "next_payments": [
+        {
+            "id": "uuid-payment-1",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "83e37e49-9b86-479c-a026-fe514bf94fad",
+            "recurring_bill_description": "Assinatura mensal - Software",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "transaction": null,
+            "due_date": "2026-01-03",
+            "paid_on": null,
+            "amount": "299.00",
+            "status": "pendente",
+            "created_at": "2025-11-28T12:39:31.644809-03:00",
+            "updated_at": "2025-11-28T12:39:31.644809-03:00"
+        },
+        {
+            "id": "uuid-payment-2",
+            "recurring_bill": "83e37e49-9b86-479c-a026-fe514bf94fad",
+            "recurring_bill_description": "Assinatura mensal - Software",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "transaction": null,
+            "due_date": "2026-02-03",
+            "paid_on": null,
+            "amount": "299.00",
+            "status": "pendente",
+            "created_at": "2025-11-28T12:39:31.644809-03:00",
+            "updated_at": "2025-11-28T12:39:31.644809-03:00"
+        }
+        // ... até 5 pagamentos (ordenados por due_date, próximos primeiro)
+    ]
 }
 ```
 
-### Para Recurring Incomes
+**Campos do `item` (RecurringBill):**
+- `id`, `company`, `company_name`: Identificadores
+- `category`, `category_name`, `category_code`: Categoria
+- `cost_center`, `cost_center_name`: Centro de custo
+- `order`, `order_code`: Ordem
+- `description`: Descrição da conta recorrente
+- `amount`: Valor de cada parcela
+- `frequency`: Frequência (`daily`, `weekly`, `monthly`, `quarterly`, `yearly`)
+- `start_date`: Data de início
+- `end_date`: Data de término (null = sem data de término)
+- `next_due_date`: Próxima data de vencimento
+- `is_active`: Se está ativa
+- `created_at`, `updated_at`: Timestamps
+
+**Campos do `payments_summary`:**
+- `total_payments`: Total de pagamentos gerados
+- `pending_count`: Quantidade de pagamentos pendentes
+- `paid_count`: Quantidade de pagamentos quitados
+- `total_pending`: Valor total pendente
+- `total_paid`: Valor total já pago
+
+**Campos do `next_payments` (Array):**
+- Lista das **próximas 5 instâncias de pagamentos futuros** (due_date >= hoje)
+- Ordenadas por `due_date` crescente (próximas primeiro)
+- Máximo de 5 itens para performance
+- Cada item contém:
+  - `id`: UUID do pagamento
+  - `recurring_bill`: ID da conta recorrente pai
+  - `recurring_bill_description`: Descrição da conta recorrente
+  - `category_code` e `category_name`: Categoria (via recurring_bill)
+  - `due_date`: Data de vencimento desta parcela
+  - `paid_on`: Data do pagamento (null se pendente)
+  - `amount`: Valor desta parcela
+  - `status`: `pendente` ou `quitada`
+  - `transaction`: ID da transação (null se pendente)
+  - `created_at`, `updated_at`: Timestamps
+
+**Uso no Frontend:**
+- Use `next_payments` para criar um dropdown/accordion mostrando as próximas parcelas
+- Apenas pagamentos futuros são retornados (due_date >= hoje)
+- Ordenação já está feita: as próximas aparecem primeiro
+- Máximo de 5 itens para performance
+- Se houver menos de 5 pagamentos futuros, retornará apenas os disponíveis
+
+### 4. Recurring Incomes (Contas Recorrentes a Receber)
 
 ```json
 {
@@ -412,7 +673,43 @@ Quando `uuid` é fornecido, retorna detalhes completos do item.
 }
 ```
 
-### Para Recurring Bill Payments / Recurring Income Receipts
+**Campos do `item` (RecurringIncome):**
+- Mesma estrutura do RecurringBill
+- Campos específicos de receita recorrente
+
+**Campos do `receipts_summary`:**
+- `total_receipts`: Total de recebimentos gerados
+- `pending_count`: Quantidade de recebimentos pendentes
+- `received_count`: Quantidade de recebimentos recebidos
+- `total_pending`: Valor total pendente
+- `total_received`: Valor total já recebido
+
+**Campos do `next_receipts` (Array):**
+- Lista das **próximas 5 instâncias de recebimentos futuros** (due_date >= hoje)
+- Ordenadas por `due_date` crescente (próximas primeiro)
+- Máximo de 5 itens para performance
+- Cada item contém:
+  - `id`: UUID do recebimento
+  - `recurring_income`: ID da conta recorrente pai
+  - `recurring_income_description`: Descrição da conta recorrente
+  - `category_code` e `category_name`: Categoria (via recurring_income)
+  - `due_date`: Data de vencimento deste recebimento
+  - `received_on`: Data do recebimento (null se pendente)
+  - `amount`: Valor deste recebimento
+  - `status`: `pendente` ou `recebido`
+  - `transaction`: ID da transação (null se pendente)
+  - `created_at`, `updated_at`: Timestamps
+
+**Uso no Frontend:**
+- Use `next_receipts` para criar um dropdown/accordion mostrando as próximas parcelas
+- Apenas recebimentos futuros são retornados (due_date >= hoje)
+- Ordenação já está feita: as próximas aparecem primeiro
+- Máximo de 5 itens para performance
+- Se houver menos de 5 recebimentos futuros, retornará apenas os disponíveis
+
+### 5. Recurring Bill Payments (Pagamentos de Contas Recorrentes)
+
+#### Payment sem transação (status: pendente)
 
 ```json
 {
@@ -424,7 +721,30 @@ Quando `uuid` é fornecido, retorna detalhes completos do item.
         "recurring_bill_description": "Assinatura mensal - Software",
         "category_code": "2",
         "category_name": "Despesas Operacionais",
-        "transaction": "uuid-transacao-ou-null",
+        "transaction": null,
+        "due_date": "2025-12-03",
+        "paid_on": null,
+        "amount": "299.00",
+        "status": "pendente",
+        "created_at": "2025-11-28T12:39:31.644809-03:00",
+        "updated_at": "2025-11-28T12:39:31.644809-03:00"
+    }
+}
+```
+
+#### Payment com transação (status: quitada)
+
+```json
+{
+    "type": "recurring_bill_payments",
+    "item": {
+        "id": "uuid-do-pagamento",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "recurring_bill": "83e37e49-9b86-479c-a026-fe514bf94fad",
+        "recurring_bill_description": "Assinatura mensal - Software",
+        "category_code": "2",
+        "category_name": "Despesas Operacionais",
+        "transaction": "uuid-transacao",
         "due_date": "2025-12-03",
         "paid_on": "2025-12-05",
         "amount": "299.00",
@@ -434,18 +754,147 @@ Quando `uuid` é fornecido, retorna detalhes completos do item.
     },
     "transaction": {
         "id": "uuid-transacao",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "uuid-conta",
+        "bank_account_name": "Conta Principal",
+        "category": "uuid-categoria",
+        "category_name": "Despesas Operacionais",
+        "category_code": "2",
+        "cash_register": null,
+        "cash_register_name": null,
+        "contact": null,
+        "contact_name": null,
+        "cost_center": "uuid-cost-center",
+        "cost_center_name": "Administracao",
+        "payment_method": "uuid-payment-method",
+        "payment_method_name": "Pix",
+        "order": 10,
+        "order_code": "#10",
+        "related_transaction": null,
+        "linked_transaction": null,
         "description": "Pagamento - Assinatura mensal - Software",
         "amount": "299.00",
         "type": "despesa",
         "transaction_date": "2025-12-05",
-        "bank_account": "uuid-conta",
-        "bank_account_name": "Conta Principal"
-        // ... demais campos do TransactionSerializer
+        "created_at": "2025-12-05T10:00:00.000000-03:00",
+        "updated_at": "2025-12-05T10:00:00.000000-03:00"
     }
 }
 ```
 
-**Nota:** O campo `transaction` só será incluído se o pagamento/recebimento tiver uma transação associada.
+**Campos do `item` (RecurringBillPayment):**
+- `id`: Identificador único do pagamento
+- `company`: ID da empresa
+- `recurring_bill`: ID da conta recorrente pai
+- `recurring_bill_description`: Descrição da conta recorrente
+- `category_code`: Código da categoria (via recurring_bill)
+- `category_name`: Nome da categoria (via recurring_bill)
+- `transaction`: ID da transação (null se pendente)
+- `due_date`: Data de vencimento desta parcela
+- `paid_on`: Data do pagamento (null se pendente)
+- `amount`: Valor desta parcela
+- `status`: Status (`pendente` ou `quitada`)
+- `created_at`, `updated_at`: Timestamps
+
+**Campos do `transaction` (quando presente):**
+- Todos os campos completos da transação de pagamento
+
+---
+
+### 6. Recurring Income Receipts (Recebimentos de Contas Recorrentes)
+
+#### Receipt sem transação (status: pendente)
+
+```json
+{
+    "type": "recurring_income_receipts",
+    "item": {
+        "id": "uuid-do-recebimento",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "recurring_income": "uuid-recurring-income",
+        "recurring_income_description": "Aluguel Recebido",
+        "category_code": "1",
+        "category_name": "Vendas",
+        "transaction": null,
+        "due_date": "2025-02-01",
+        "received_on": null,
+        "amount": "2000.00",
+        "status": "pendente",
+        "created_at": "2025-01-01T10:00:00.000000-03:00",
+        "updated_at": "2025-01-01T10:00:00.000000-03:00"
+    }
+}
+```
+
+#### Receipt com transação (status: recebido)
+
+```json
+{
+    "type": "recurring_income_receipts",
+    "item": {
+        "id": "uuid-do-recebimento",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "recurring_income": "uuid-recurring-income",
+        "recurring_income_description": "Aluguel Recebido",
+        "category_code": "1",
+        "category_name": "Vendas",
+        "transaction": "uuid-transacao",
+        "due_date": "2025-02-01",
+        "received_on": "2025-02-03",
+        "amount": "2000.00",
+        "status": "recebido",
+        "created_at": "2025-01-01T10:00:00.000000-03:00",
+        "updated_at": "2025-02-03T10:00:00.000000-03:00"
+    },
+    "transaction": {
+        "id": "uuid-transacao",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "bank_account": "uuid-conta",
+        "bank_account_name": "Conta Principal",
+        "category": "uuid-categoria",
+        "category_name": "Vendas",
+        "category_code": "1",
+        "cash_register": null,
+        "cash_register_name": null,
+        "contact": null,
+        "contact_name": null,
+        "cost_center": "uuid-cost-center",
+        "cost_center_name": "Departamento Comercial",
+        "payment_method": "uuid-payment-method",
+        "payment_method_name": "Pix",
+        "order": 15,
+        "order_code": "#15",
+        "related_transaction": null,
+        "linked_transaction": null,
+        "description": "Recebimento - Aluguel Recebido",
+        "amount": "2000.00",
+        "type": "receita",
+        "transaction_date": "2025-02-03",
+        "created_at": "2025-02-03T10:00:00.000000-03:00",
+        "updated_at": "2025-02-03T10:00:00.000000-03:00"
+    }
+}
+```
+
+**Campos do `item` (RecurringIncomeReceipt):**
+- `id`: Identificador único do recebimento
+- `company`: ID da empresa
+- `recurring_income`: ID da conta recorrente pai
+- `recurring_income_description`: Descrição da conta recorrente
+- `category_code`: Código da categoria (via recurring_income)
+- `category_name`: Nome da categoria (via recurring_income)
+- `transaction`: ID da transação (null se pendente)
+- `due_date`: Data de vencimento deste recebimento
+- `received_on`: Data do recebimento (null se pendente)
+- `amount`: Valor deste recebimento
+- `status`: Status (`pendente` ou `recebido`)
+- `created_at`, `updated_at`: Timestamps
+
+**Campos do `transaction` (quando presente):**
+- Todos os campos completos da transação de recebimento
+- `type`: Sempre `receita` para receipts
 
 ---
 
@@ -533,4 +982,115 @@ GET /api/v1/financials/data/?type=bills&status=pendente&search=category#operacio
 6. **Busca por Nome**: Use `search=category#nome` ou `search=cost_center#nome` para buscar por nome parcial (case-insensitive).
 
 7. **Status de Bills**: Bills usam `a_vencer` e `quitada` como status, não `pendente`. Incomes usam `pendente` e `recebido`.
+
+---
+
+## Guia de Implementação para Frontend
+
+### Estrutura de Tela de Detalhes
+
+Ao acessar um item específico usando `?uuid={id}`, você receberá uma estrutura padronizada:
+
+```javascript
+// Estrutura da resposta JSON
+{
+    type: string,  // Tipo do item
+    item: object,  // Dados completos do item
+    // Campos adicionais dependendo do tipo:
+    payment_transaction: object,  // Para bills/incomes com pagamento (opcional)
+    payments_summary: object,  // Para recurring_bills (opcional)
+    receipts_summary: object,  // Para recurring_incomes (opcional)
+    transaction: object,  // Para recurring payments/receipts (opcional)
+    next_payments: array,  // Para recurring_bills (opcional)
+    next_receipts: array,  // Para recurring_incomes (opcional)
+}
+```
+
+### Campos Importantes para Exibição
+
+#### Para Bills/Incomes:
+- **Status Badge**: Use `item.status` para mostrar badge colorido
+  - Bills: `a_vencer` (amarelo), `quitada` (verde)
+  - Incomes: `pendente` (amarelo), `recebido` (verde)
+- **Valor**: Formate `item.amount` como moeda (R$)
+- **Data de Vencimento**: Formate `item.due_date` (DD/MM/YYYY)
+- **Categoria**: Mostre `item.category_name` e `item.category_code`
+- **Contato**: Se `item.contact_name` não for null, mostre
+- **Transação de Pagamento**: Se `payment_transaction` existir, mostre seção separada com detalhes
+
+#### Para Recurring Bills/Incomes:
+- **Status Ativo**: Use `item.is_active` para mostrar se está ativa
+- **Próximo Vencimento**: Destaque `item.next_due_date`
+- **Frequência**: Traduza `item.frequency` (monthly → Mensal)
+- **Resumo de Pagamentos/Recebimentos**: Mostre `payments_summary` ou `receipts_summary` em cards
+
+#### Para Recurring Payments/Receipts:
+- **Status**: `pendente` ou `quitada`/`recebido`
+- **Data de Vencimento**: `item.due_date`
+- **Data de Pagamento/Recebimento**: `item.paid_on` ou `item.received_on` (se não null)
+- **Descrição da Conta Recorrente**: `item.recurring_bill_description` ou `item.recurring_income_description`
+- **Transação**: Se `transaction` existir, mostre detalhes completos
+
+### Exemplo de Layout Sugerido
+
+#### Para Bills/Incomes:
+
+```
+┌─────────────────────────────────────┐
+│  [Voltar]  Detalhes da Conta        │
+├─────────────────────────────────────┤
+│  Descrição: Aluguel                 │
+│  Valor: R$ 2.000,00                 │
+│  Vencimento: 13/12/2025             │
+│  Status: [A Vencer]                 │
+├─────────────────────────────────────┤
+│  Categoria: Despesas Operacionais   │
+│  Código: 2                          │
+│  Centro de Custo: Administração     │
+│  Contato: Fornecedor Exemplo ME     │
+├─────────────────────────────────────┤
+│  [Se quitada/recebido]              │
+│  Transação de Pagamento/Recebimento │
+│  ────────────────────────────────   │
+│  Data: 23/11/2025                   │
+│  Conta: Conta Principal             │
+│  Método: Boleto                     │
+│  Valor: R$ 1.200,00                 │
+└─────────────────────────────────────┘
+```
+
+#### Para Recurring Bills/Incomes (com dropdown):
+
+```
+┌─────────────────────────────────────┐
+│  [Voltar]  Detalhes da Conta        │
+│         Recorrente                  │
+├─────────────────────────────────────┤
+│  Descrição: Assinatura mensal       │
+│  Valor: R$ 299,00                   │
+│  Frequência: Mensal                 │
+│  Próximo Vencimento: 03/01/2026     │
+│  Status: [Ativa]                    │
+├─────────────────────────────────────┤
+│  Resumo de Pagamentos:              │
+│  • Total: 12 pagamentos              │
+│  • Pendentes: 6 (R$ 1.794,00)       │
+│  • Quitados: 6 (R$ 1.794,00)        │
+├─────────────────────────────────────┤
+│  ▼ Próximos Pagamentos (5)          │
+│  ┌─────────────────────────────────┐│
+│  │ 03/01/2026 - R$ 299,00 [Pendente]││
+│  │ 03/02/2026 - R$ 299,00 [Pendente]││
+│  │ 03/03/2026 - R$ 299,00 [Pendente]││
+│  │ 03/04/2026 - R$ 299,00 [Pendente]││
+│  │ 03/05/2026 - R$ 299,00 [Pendente]││
+│  └─────────────────────────────────┘│
+└─────────────────────────────────────┘
+```
+
+**Notas sobre o Dropdown:**
+- Use o campo `next_payments` ou `next_receipts` para criar um dropdown/accordion
+- Apenas instâncias futuras são retornadas (due_date >= hoje)
+- Ordenação já está feita: as próximas aparecem primeiro
+- Máximo de 5 itens para performance
 

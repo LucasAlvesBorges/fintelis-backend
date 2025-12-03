@@ -1010,6 +1010,19 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
                 "total_pending": pending.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
                 "total_paid": paid.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
             }
+            
+            # Incluir próximas 5 instâncias de pagamentos (ordenadas por due_date, próximas primeiro)
+            # Filtrar apenas pagamentos futuros ou do dia atual
+            today = timezone.localdate()
+            next_payments = (
+                payments.filter(due_date__gte=today)
+                .select_related("recurring_bill", "recurring_bill__category", "transaction", "transaction__bank_account")
+                .order_by("due_date", "id")
+                [:5]
+            )
+            response_data["next_payments"] = RecurringBillPaymentSerializer(
+                next_payments, many=True, context={"request": request, "company": self.get_active_company()}
+            ).data
         
         elif data_type == "recurring_incomes":
             # Incluir resumo de recebimentos
@@ -1026,6 +1039,19 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
                 "total_pending": pending.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
                 "total_received": received.aggregate(total=Sum("amount"))["total"] or Decimal("0"),
             }
+            
+            # Incluir próximas 5 instâncias de recebimentos (ordenadas por due_date, próximas primeiro)
+            # Filtrar apenas recebimentos futuros ou do dia atual
+            today = timezone.localdate()
+            next_receipts = (
+                receipts.filter(due_date__gte=today)
+                .select_related("recurring_income", "recurring_income__category", "transaction", "transaction__bank_account")
+                .order_by("due_date", "id")
+                [:5]
+            )
+            response_data["next_receipts"] = RecurringIncomeReceiptSerializer(
+                next_receipts, many=True, context={"request": request, "company": self.get_active_company()}
+            ).data
         
         elif data_type == "recurring_bill_payments" and instance.transaction:
             response_data["transaction"] = TransactionSerializer(
