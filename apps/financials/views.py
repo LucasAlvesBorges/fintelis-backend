@@ -844,18 +844,36 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
         Parseia o parâmetro de busca no formato 'campo#valor,campo2#valor2'.
         
         Retorna um dicionário com os filtros.
+        Suporta tanto '#' quanto '%23' (URL encoded).
         """
         filters = {}
         if not search_param:
             return filters
         
+        # Normalizar: substituir %23 por # caso venha codificado
+        search_param = search_param.replace("%23", "#")
+        
         for part in search_param.split(","):
-            if "#" not in part:
+            part = part.strip()
+            if not part:
                 continue
-            field, value = part.split("#", 1)
+            
+            # Verificar se tem separador #
+            if "#" not in part:
+                # Se não tem #, pode ser um valor simples para busca geral
+                # Por enquanto, ignoramos valores sem #
+                continue
+            
+            # Dividir pelo primeiro # encontrado
+            parts = part.split("#", 1)
+            if len(parts) != 2:
+                continue
+            
+            field, value = parts
             field = field.strip().lower()
             value = value.strip()
             
+            # Validar que ambos têm valor
             if field and value:
                 filters[field] = value
         
@@ -905,6 +923,10 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
         # Filtro de busca avançada (campo#valor)
         search_param = request.query_params.get("search")
         if search_param:
+            # Decodificar URL se necessário (caso o # venha como %23)
+            from urllib.parse import unquote
+            search_param = unquote(search_param)
+            
             search_filters = self._parse_search_filters(search_param)
             
             for field, value in search_filters.items():
