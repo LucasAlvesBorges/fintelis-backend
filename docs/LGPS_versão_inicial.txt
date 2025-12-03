@@ -1,0 +1,283 @@
+1. QUEM SOMOS
+
+O sistema Fintelis é uma solução de gestão (ERP) oferecida no modelo de software como serviço (SaaS), voltada para controle financeiro, de estoque e operações de pequenas e médias empresas.
+
+Para fins da Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 – LGPD), o controlador dos dados é:
+
+Empresa Controladora: [NOME DA EMPRESA RESPONSÁVEL PELO FINTELIS]
+
+CNPJ: [CNPJ DA EMPRESA]
+
+Endereço: [ENDEREÇO COMPLETO]
+
+Email de contato geral: [EMAIL GERAL]
+
+O contato específico para assuntos de privacidade e proteção de dados (DPO/Encarregado) está indicado na Seção 13 deste documento.
+
+2. ACEITAÇÃO DESTES TERMOS
+
+Ao criar uma conta, acessar ou utilizar o Fintelis, você declara que leu, compreendeu e concorda com estes Termos de Uso e Proteção de Dados, bem como com a Política de Privacidade, quando houver, que complementa este documento.
+
+Caso não concorde com qualquer das condições aqui descritas, você não deve utilizar o sistema.
+
+3. DESCRIÇÃO GERAL DO SERVIÇO
+
+O Fintelis disponibiliza funcionalidades para:
+
+Controle de finanças (receitas, despesas, fluxo de caixa, contas a pagar e receber);
+
+Gestão de contas bancárias e caixas/pontos de venda;
+
+Gestão de estoque e movimentação de produtos;
+
+Cadastro de empresas, centros de custos, métodos de pagamento e contatos (clientes/fornecedores);
+
+Cadastro e gestão de usuários da plataforma e operadores internos da empresa.
+
+Todas essas funcionalidades são prestadas em ambiente multi-empresa (multi-tenant), com isolamento de dados por empresa.
+
+4. DADOS COLETADOS
+
+Coletamos apenas os dados necessários para a prestação do serviço, cumprimento de obrigações legais e segurança da plataforma, incluindo:
+
+4.1 Dados de Usuários da Plataforma
+
+Nome e sobrenome;
+
+Endereço de e-mail;
+
+Número de telefone (opcional);
+
+Senha de acesso (armazenada de forma criptografada);
+
+Dados técnicos de criação e atualização de cadastro (datas e identificadores).
+
+4.2 Dados de Acesso e Uso
+
+Registros básicos de acesso ao sistema (datas, horários, ações relevantes para auditoria e segurança);
+
+Informações de sessão estritamente necessárias para autenticação e manutenção do login.
+
+4.3 Dados da Empresa
+
+Nome/razão social;
+
+CNPJ e dados de identificação fiscal;
+
+E-mail de contato corporativo;
+
+Dados de assinatura (plano, status, datas de início e término, período de teste, quando aplicável).
+
+4.4 Dados Operacionais/Transacionais
+
+No uso do sistema, sua empresa poderá registrar dados como:
+
+Transações financeiras (receitas, despesas, transferências, saldos, categorias financeiras);
+
+Dados de contas bancárias e caixas internos da empresa;
+
+Dados de estoque, movimentações de produtos e níveis de estoque;
+
+Dados de contatos (clientes e fornecedores): nome, identificação fiscal (CPF/CNPJ), e-mail, telefone e classificação (cliente/fornecedor).
+
+Esses dados são de responsabilidade da sua empresa, que atua como controladora em relação aos dados que cadastra no sistema (por exemplo, dados de seus próprios clientes).
+
+5. FINALIDADES DO TRATAMENTO
+
+Tratamos dados pessoais para as seguintes finalidades principais, em conformidade com a LGPD:
+
+Prestação do serviço contratado: viabilizar o funcionamento do ERP e suas funcionalidades (execução de contrato);
+
+Autenticação e segurança: permitir o login, verificar identidade e proteger o sistema contra acessos indevidos;
+
+Gestão da conta e assinatura: administrar planos, períodos de teste, cobranças e status de assinatura;
+
+Auditoria e histórico: possibilitar rastreabilidade de ações de usuários e registros importantes para segurança, cumprimento legal e controles internos;
+
+Comunicações administrativas: enviar avisos importantes sobre uso do sistema, alterações de termos, vencimento de plano, entre outros;
+
+Alertas operacionais: emitir notificações, por exemplo, em situações de estoque mínimo ou eventos relevantes de operação.
+
+As bases legais utilizadas incluem, principalmente: execução de contrato, cumprimento de obrigação legal e legítimo interesse, conforme o caso.
+
+6. COMPARTILHAMENTO DE DADOS
+6.1 Compartilhamento Interno
+
+Dentro do próprio sistema, os dados da sua empresa serão compartilhados apenas entre os usuários que possuam permissão de acesso e estejam vinculados à mesma empresa. Esse compartilhamento tem como finalidade o funcionamento colaborativo do ERP (por exemplo, diferentes usuários acessando o mesmo caixa, estoque ou centro de custo).
+
+6.2 Compartilhamento com Terceiros
+
+Na versão atual do sistema:
+
+Não compartilhamos dados pessoais ou empresariais com terceiros para fins de marketing;
+
+Não há integrações ativas que enviem dados para redes sociais ou plataformas de anúncios;
+
+Não realizamos venda de dados pessoais.
+
+Dados poderão ser compartilhados com terceiros apenas quando necessário para:
+
+Cumprimento de obrigação legal ou regulatória;
+
+Atender ordem judicial ou requisição de autoridade competente;
+
+Exercício regular de direitos em processo judicial, administrativo ou arbitral.
+
+Se futuramente forem implementadas integrações com meios de pagamento, serviços externos ou funcionalidades de marketing, os termos serão atualizados e, quando aplicável, poderá ser solicitado seu consentimento específico.
+
+7. ARMAZENAMENTO, SEGURANÇA E RETENÇÃO
+7.1 Armazenamento e Localização
+
+Os dados são armazenados em servidores sob responsabilidade da empresa controladora ou de provedores contratados, com controle de acesso restrito e seguindo padrões de segurança adequados. Sempre que possível, priorizamos que a infraestrutura esteja localizada em território nacional ou em países/regiões com nível adequado de proteção de dados.
+
+7.2 Medidas de Segurança
+
+Adotamos medidas de segurança administrativas, físicas e técnicas para proteger os dados contra acessos não autorizados, perdas acidentais, destruição ou alteração indevida, tais como:
+
+Armazenamento de senhas em formato criptografado;
+
+Controle de acesso por usuário e perfil de permissões;
+
+Separação lógica dos dados de cada empresa;
+
+Uso de conexão segura (HTTPS) para acesso ao sistema;
+
+Registros de atividades relevantes para auditoria e segurança.
+
+Nenhuma solução é 100% à prova de falhas, mas buscamos constantemente aprimorar nossos controles e procedimentos, de acordo com boas práticas de mercado e com a LGPD.
+
+7.3 Retenção de Dados
+
+Os dados serão mantidos:
+
+Enquanto durar a relação contratual entre sua empresa e o Fintelis;
+
+Pelo tempo necessário para cumprimento de obrigações legais e regulatórias (por exemplo, prazos fiscais e contábeis);
+
+Pelo tempo necessário para resguardar direitos em eventual processo judicial, administrativo ou arbitral.
+
+Após esses prazos, os dados poderão ser anonimizados ou excluídos de forma segura, na medida do possível e permitido pela legislação.
+
+8. DIREITOS DOS TITULARES DE DADOS
+
+Em conformidade com a LGPD, os titulares de dados pessoais possuem, entre outros, os seguintes direitos:
+
+Confirmar a existência de tratamento de seus dados;
+
+Acessar seus dados pessoais tratados;
+
+Solicitar correção de dados incompletos, inexatos ou desatualizados;
+
+Solicitar anonimização, bloqueio ou eliminação de dados desnecessários, excessivos ou tratados em desconformidade;
+
+Solicitar portabilidade de dados a outro fornecedor de serviço ou produto, quando aplicável;
+
+Solicitar eliminação de dados pessoais tratados com base em consentimento, quando esse for a base legal;
+
+Obter informações sobre compartilhamento de dados com terceiros;
+
+Revogar consentimento, quando o tratamento se basear nesse fundamento;
+
+Opor-se a tratamento realizado com fundamento em legítimo interesse, em caso de descumprimento da LGPD.
+
+O exercício desses direitos poderá ser feito conforme indicado na Seção 13 (Contato).
+
+Importante: em muitos casos, a sua empresa será a controladora dos dados que você cadastra no Fintelis (por exemplo, dados de clientes e fornecedores). Nesses casos, o titular deverá primeiramente contatar a sua empresa, que poderá nos acionar, quando necessário, para atendimento da solicitação.
+
+9. COOKIES E OUTRAS TECNOLOGIAS
+
+Utilizamos apenas cookies e identificadores estritamente necessários para:
+
+Manter sua sessão autenticada no sistema;
+
+Proteger o acesso contra ataques comuns;
+
+Garantir funcionamento básico da aplicação.
+
+Não utilizamos, na versão atual:
+
+Cookies de publicidade;
+
+Cookies de rastreamento para marketing;
+
+Ferramentas de análise comportamental que identifiquem o usuário de forma individualizada.
+
+Caso futuramente sejam utilizados cookies adicionais (por exemplo, para estatísticas de uso ou melhorias de experiência), informaremos claramente e, quando necessário, obteremos seu consentimento.
+
+10. TRANSFERÊNCIA INTERNACIONAL DE DADOS
+
+No momento, não realizamos transferência internacional de dados pessoais de forma rotineira.
+
+Se, por motivos técnicos ou de infraestrutura, vier a ser necessária a transferência para outros países, garantiremos que:
+
+Haja nível de proteção de dados adequado, nos termos da LGPD; e/ou
+
+Sejam adotadas garantias contratuais suficientes com provedores externos;
+
+e os presentes Termos serão atualizados para refletir essa alteração.
+
+11. INCIDENTES DE SEGURANÇA
+
+Em caso de incidente de segurança que possa acarretar risco ou dano relevante aos titulares de dados pessoais, nos comprometemos a:
+
+Avaliar a extensão e gravidade do incidente;
+
+Adotar medidas técnicas e administrativas para mitigar efeitos;
+
+Comunicar a Autoridade Nacional de Proteção de Dados (ANPD), quando exigido;
+
+Comunicar os titulares afetados, quando houver risco ou dano relevante, em linguagem clara e acessível, informando as medidas que estão sendo tomadas.
+
+12. CANCELAMENTO, ENCERRAMENTO E EXCLUSÃO DE DADOS
+
+Em caso de encerramento da conta da sua empresa no Fintelis:
+
+Alguns dados poderão ser mantidos pelo período necessário ao cumprimento de obrigações legais e regulatórias (especialmente dados financeiros e contábeis);
+
+Outros dados poderão ser anonimizados ou excluídos de forma segura, conforme viabilidade técnica e limitações legais;
+
+Os prazos e regras específicos poderão ser detalhados em nossa Política de Privacidade ou em contrato firmado com sua empresa.
+
+Caso deseje solicitar exclusão ou anonimização de dados pessoais, entre em contato pelo canal indicado na Seção 13. Cada solicitação será analisada à luz da LGPD e das outras normas aplicáveis (por exemplo, prazos de guarda legal).
+
+13. CONTATO PARA PRIVACIDADE E LGPD (ENCARREGADO/DPO)
+
+Para dúvidas, solicitações ou exercício de direitos relacionados a dados pessoais, disponibilizamos os seguintes canais:
+
+Encarregado (DPO): [NOME DO ENCARREGADO]
+
+E-mail para privacidade: [EMAIL EXCLUSIVO PARA PRIVACIDADE]
+
+Endereço para correspondência: [ENDEREÇO COMPLETO DA EMPRESA]
+
+Responderemos às solicitações dentro de prazo razoável e em conformidade com os prazos previstos na LGPD.
+
+14. ALTERAÇÕES DESTES TERMOS
+
+Podemos alterar estes Termos de Uso e Proteção de Dados a qualquer momento, especialmente em caso de:
+
+Mudanças na legislação aplicável;
+
+Atualizações de funcionalidades do sistema;
+
+Implementação de novos serviços ou integrações;
+
+Mudanças relevantes na forma de tratamento de dados.
+
+Quando houver alterações relevantes, poderemos:
+
+Enviar comunicação por e-mail aos usuários administradores da empresa; e/ou
+
+Exibir aviso em destaque ao acessar o sistema; e/ou
+
+Solicitar novo aceite aos Termos, quando necessário.
+
+A continuidade de uso do Fintelis após a publicação de novos Termos será interpretada como concordância com as alterações.
+
+15. DISPOSIÇÕES FINAIS
+
+A utilização do sistema deve observar a legislação vigente, em especial a LGPD, o Código Civil, o Código de Defesa do Consumidor (quando aplicável) e o Marco Civil da Internet.
+
+Sua empresa é responsável pelos dados que cadastra no sistema e pelo uso adequado das funcionalidades, incluindo a definição de perfis de acesso dos seus usuários internos.
+
+Em caso de conflito entre estes Termos e contrato específico assinado entre sua empresa e a empresa controladora do Fintelis, prevalecerão as condições do contrato, naquilo que não contrariar a LGPD.
