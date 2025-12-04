@@ -1512,3 +1512,228 @@ class FinancialDataView(ActiveCompanyMixin, APIView):
             self._get_detail_response(item, item_type, request),
             status=status.HTTP_201_CREATED,
         )
+    
+    def put(self, request):
+        """
+        PUT /api/v1/financials/data/
+        
+        Atualiza um recurring_bill ou recurring_income.
+        Parcelas pendentes futuras são atualizadas com os novos dados.
+        Parcelas já pagas/recebidas permanecem inalteradas.
+        
+        Body:
+        -----
+        {
+            "uuid": "uuid-do-item",
+            "type": "recurring_bills" | "recurring_incomes",
+            "description": "Nova descrição",
+            "amount": 1500.00,
+            "frequency": "monthly",
+            "category": "uuid-da-categoria",
+            "cost_center": "uuid-do-centro-de-custo",
+            "contact": "uuid-do-contato",
+            "start_date": "YYYY-MM-DD",
+            "end_date": "YYYY-MM-DD",
+            "next_due_date": "YYYY-MM-DD",
+            "is_active": true
+        }
+        """
+        return self._handle_update(request, partial=False)
+    
+    def patch(self, request):
+        """
+        PATCH /api/v1/financials/data/
+        
+        Atualiza parcialmente um recurring_bill ou recurring_income.
+        Parcelas pendentes futuras são atualizadas com os novos dados.
+        Parcelas já pagas/recebidas permanecem inalteradas.
+        """
+        return self._handle_update(request, partial=True)
+    
+    def _handle_update(self, request, partial=False):
+        """Lógica compartilhada para PUT e PATCH."""
+        item_uuid = request.data.get("uuid")
+        item_type = request.data.get("type")
+        
+        if not item_uuid:
+            return Response(
+                {"error": "Campo 'uuid' é obrigatório."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if not item_type:
+            return Response(
+                {"error": "Campo 'type' é obrigatório."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Apenas recurring_bills e recurring_incomes podem ser atualizados
+        allowed_types = ["recurring_bills", "recurring_incomes"]
+        if item_type not in allowed_types:
+            return Response(
+                {
+                    "error": f"Tipo '{item_type}' não suporta atualização.",
+                    "allowed_types": allowed_types,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        config = self.VALID_TYPES[item_type]
+        company = self.get_active_company()
+        
+        # Buscar o item
+        try:
+            item = config["model"].objects.select_related(
+                *config["select_related"]
+            ).get(id=item_uuid, company=company)
+        except config["model"].DoesNotExist:
+            return Response(
+                {"error": f"Item não encontrado com UUID: {item_uuid}"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        # Preparar dados para o serializer (remover uuid e type)
+        update_data = request.data.copy()
+        update_data.pop("uuid", None)
+        update_data.pop("type", None)
+        
+        # Serializar e validar
+        serializer = config["serializer"](
+            item,
+            data=update_data,
+            partial=partial,
+            context=self.get_serializer_context()
+        )
+        serializer.is_valid(raise_exception=True)
+        
+        # O serializer já possui a lógica de regenerar payments/receipts
+        # quando campos de agendamento são alterados
+        with db_transaction.atomic():
+            item = serializer.save()
+            
+            # Atualizar o amount das parcelas pendentes futuras
+            if "amount" in update_data:
+                today = timezone.localdate()
+                if item_type == "recurring_bills":
+                    RecurringBillPayment.objects.filter(
+                        recurring_bill=item,
+                        company=company,
+                        status=RecurringBillPayment.Status.PENDENTE,
+                        due_date__gte=today
+                    ).update(amount=item.amount)
+                else:  # recurring_incomes
+                    RecurringIncomeReceipt.objects.filter(
+                        recurring_income=item,
+                        company=company,
+                        status=RecurringIncomeReceipt.Status.PENDENTE,
+                        due_date__gte=today
+                    ).update(amount=item.amount)
+        
+        # Invalidar cache
+        self._invalidate_cache(str(company.id), item_type)
+        # Também invalidar o cache dos payments/receipts relacionados
+        if item_type == "recurring_bills":
+            self._invalidate_cache(str(company.id), "recurring_bill_payments")
+        else:
+            self._invalidate_cache(str(company.id), "recurring_income_receipts")
+        
+        # Retornar detalhes atualizados
+        item.refresh_from_db()
+        return Response(
+            self._get_detail_response(item, item_type, request),
+            status=status.HTTP_200_OK,
+        )
+    
+    def delete(self, request):
+        """
+        DELETE /api/v1/financials/data/
+        
+        Remove um recurring_bill ou recurring_income.
+        
+        IMPORTANTE:
+        - Parcelas pendentes futuras são removidas.
+        - Parcelas já pagas/recebidas são mantidas para histórico
+          (a referência ao recurring é definida como NULL).
+        
+        Query Parameters:
+        -----------------
+        - uuid (required): UUID do item a ser deletado.
+        - type (required): "recurring_bills" ou "recurring_incomes".
+        """
+        item_uuid = request.query_params.get("uuid")
+        item_type = request.query_params.get("type")
+        
+        if not item_uuid:
+            return Response(
+                {"error": "Parâmetro 'uuid' é obrigatório."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if not item_type:
+            return Response(
+                {"error": "Parâmetro 'type' é obrigatório."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Apenas recurring_bills e recurring_incomes podem ser deletados
+        allowed_types = ["recurring_bills", "recurring_incomes"]
+        if item_type not in allowed_types:
+            return Response(
+                {
+                    "error": f"Tipo '{item_type}' não suporta deleção via esta API.",
+                    "allowed_types": allowed_types,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        config = self.VALID_TYPES[item_type]
+        company = self.get_active_company()
+        
+        # Buscar o item
+        try:
+            item = config["model"].objects.get(id=item_uuid, company=company)
+        except config["model"].DoesNotExist:
+            return Response(
+                {"error": f"Item não encontrado com UUID: {item_uuid}"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        today = timezone.localdate()
+        
+        with db_transaction.atomic():
+            if item_type == "recurring_bills":
+                # Deletar apenas parcelas pendentes futuras
+                RecurringBillPayment.objects.filter(
+                    recurring_bill=item,
+                    company=company,
+                    status=RecurringBillPayment.Status.PENDENTE,
+                    due_date__gte=today
+                ).delete()
+                
+                # Parcelas já quitadas terão recurring_bill=NULL após o delete do item
+                # (devido ao on_delete=SET_NULL)
+            else:  # recurring_incomes
+                # Deletar apenas parcelas pendentes futuras
+                RecurringIncomeReceipt.objects.filter(
+                    recurring_income=item,
+                    company=company,
+                    status=RecurringIncomeReceipt.Status.PENDENTE,
+                    due_date__gte=today
+                ).delete()
+                
+                # Parcelas já recebidas terão recurring_income=NULL após o delete do item
+            
+            # Deletar o item principal
+            item.delete()
+        
+        # Invalidar cache
+        self._invalidate_cache(str(company.id), item_type)
+        if item_type == "recurring_bills":
+            self._invalidate_cache(str(company.id), "recurring_bill_payments")
+        else:
+            self._invalidate_cache(str(company.id), "recurring_income_receipts")
+        
+        return Response(
+            {"message": f"Item deletado com sucesso. Parcelas já pagas/recebidas foram mantidas para histórico."},
+            status=status.HTTP_200_OK,
+        )

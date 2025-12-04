@@ -855,8 +855,10 @@ class RecurringBillPayment(TimeStampedModel):
     )
     recurring_bill = models.ForeignKey(
         RecurringBill,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="payments",
+        null=True,
+        blank=True,
     )
     transaction = models.ForeignKey(
         Transaction,
@@ -879,6 +881,7 @@ class RecurringBillPayment(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["company", "recurring_bill", "due_date"],
                 name="uniq_recurring_bill_payment_cycle",
+                condition=Q(recurring_bill__isnull=False),
             )
         ]
 
@@ -916,7 +919,8 @@ class RecurringBillPayment(TimeStampedModel):
                     RecurringBill.objects.filter(id=self.recurring_bill.id).update(is_active=False)
 
     def __str__(self):
-        return f"{self.recurring_bill} - {self.due_date} ({self.get_status_display()})"
+        bill_desc = self.recurring_bill.description if self.recurring_bill else "Histórico"
+        return f"{bill_desc} - {self.due_date} ({self.get_status_display()})"
 
 
 class RecurringIncomeReceipt(TimeStampedModel):
@@ -931,8 +935,10 @@ class RecurringIncomeReceipt(TimeStampedModel):
     )
     recurring_income = models.ForeignKey(
         "RecurringIncome",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="receipts",
+        null=True,
+        blank=True,
     )
     transaction = models.ForeignKey(
         Transaction,
@@ -955,6 +961,7 @@ class RecurringIncomeReceipt(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["company", "recurring_income", "due_date"],
                 name="uniq_recurring_income_receipt_cycle",
+                condition=Q(recurring_income__isnull=False),
             )
         ]
 
@@ -992,7 +999,8 @@ class RecurringIncomeReceipt(TimeStampedModel):
                     RecurringIncome.objects.filter(id=self.recurring_income.id).update(is_active=False)
 
     def __str__(self):
-        return f"{self.recurring_income} - {self.due_date} ({self.get_status_display()})"
+        income_desc = self.recurring_income.description if self.recurring_income else "Histórico"
+        return f"{income_desc} - {self.due_date} ({self.get_status_display()})"
 
 
 class RecurringIncome(TimeStampedModel):
