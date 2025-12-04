@@ -20,7 +20,7 @@ class UserManager(BaseUserManager):
             raise ValueError("Users must have a first name")
         if not last_name:
             raise ValueError("Users must have a last name")
-        
+
         # Usuários da plataforma precisam de email
         if user_type == User.UserType.PLATAFORMA:
             if not email:
@@ -141,7 +141,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.user_type == self.UserType.OPERADOR:
             return f"{self.first_name} {self.last_name} (Operador)"
         return self.email
-    
+
     @property
     def is_platform_user(self):
         """Retorna True se o usuário é da plataforma (com login)"""

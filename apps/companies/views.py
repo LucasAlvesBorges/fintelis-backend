@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.db import transaction
+from django.db.models import Sum
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
@@ -12,10 +15,12 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import action
 
-from .models import Company, Membership, Invitation
+from .models import Company, CostCenter, Membership, Invitation
 from .serializers import (
     CompanySerializer,
+    CostCenterSerializer,
     MembershipSerializer,
     InvitationSerializer,
     InvitationCreateSerializer,
@@ -23,6 +28,21 @@ from .serializers import (
     SubscriptionActivationSerializer,
 )
 from apps.financials.mixins import ActiveCompanyMixin
+from apps.financials.models import (
+    Bill,
+    Income,
+    RecurringBill,
+    RecurringIncome,
+    Transaction,
+)
+from apps.financials.permissions import IsCompanyMember
+from apps.financials.serializers import (
+    BillSerializer,
+    IncomeSerializer,
+    RecurringBillSerializer,
+    RecurringIncomeSerializer,
+    TransactionSerializer,
+)
 
 User = get_user_model()
 
@@ -148,6 +168,12 @@ class InvitationPagination(PageNumberPagination):
     page_size = 3
     page_size_query_param = 'page_size'
     max_page_size = 3
+
+
+class CostCenterDetailsPagination(PageNumberPagination):
+    page_size = 5
+    page_size_query_param = "page_size"
+    max_page_size = 5
 
 class MembershipPagination(PageNumberPagination):
     page_size = 3
@@ -455,6 +481,207 @@ class InvitationAcceptRejectAPIView(APIView):
             {"detail": "Convite recusado com sucesso."},
             status=status.HTTP_200_OK,
         )
+
+
+class CostCenterViewSet(ActiveCompanyMixin, viewsets.ModelViewSet):
+    queryset = CostCenter.objects.all().select_related("company", "parent")
+    serializer_class = CostCenterSerializer
+    permission_classes = [permissions.IsAuthenticated, IsCompanyMember]
+
+    def get_queryset(self):
+        company = self.get_active_company()
+        return self.queryset.filter(company=company)
+
+    def perform_create(self, serializer):
+        serializer.save(company=self.get_active_company())
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["company"] = self.get_active_company()
+        return context
+
+    @action(detail=True, methods=["get"], url_path="details")
+    def details(self, request, pk=None):
+        """
+        Retorna detalhes do centro de custo com movimentações associadas
+        (transações, contas a pagar/receber e recorrentes), paginadas em 5 itens.
+        """
+        cost_center = self.get_object()
+        company = self.get_active_company()
+
+        if cost_center.company_id != company.id:
+            raise ValidationError({"detail": "Centro de custo não pertence à empresa ativa."})
+
+        paginator = CostCenterDetailsPagination()
+        transactions_page = int(request.query_params.get("transactions_page", 1))
+        bills_page = int(request.query_params.get("bills_page", 1))
+        incomes_page = int(request.query_params.get("incomes_page", 1))
+        recurring_bills_page = int(request.query_params.get("recurring_bills_page", 1))
+        recurring_incomes_page = int(request.query_params.get("recurring_incomes_page", 1))
+        page_size = paginator.page_size
+
+        transactions_qs = (
+            cost_center.transactions.all()
+            .select_related(
+                "category",
+                "contact",
+                "payment_method",
+                "cost_center",
+                "bank_account",
+                "bank_account__bank",
+            )
+            .order_by("-created_at", "-transaction_date", "-id")
+        )
+        total_transactions = transactions_qs.count()
+        transactions_start = (transactions_page - 1) * page_size
+        transactions_end = transactions_start + page_size
+        transactions = transactions_qs[transactions_start:transactions_end]
+        transactions_total_pages = (total_transactions + page_size - 1) // page_size if total_transactions > 0 else 1
+
+        bills_qs = (
+            cost_center.bills.all()
+            .select_related(
+                "category",
+                "contact",
+                "cost_center",
+                "payment_transaction",
+                "payment_transaction__bank_account",
+            )
+            .order_by("-due_date", "-id")
+        )
+        total_bills = bills_qs.count()
+        bills_start = (bills_page - 1) * page_size
+        bills_end = bills_start + page_size
+        bills = bills_qs[bills_start:bills_end]
+        bills_total_pages = (total_bills + page_size - 1) // page_size if total_bills > 0 else 1
+
+        incomes_qs = (
+            cost_center.incomes.all()
+            .select_related(
+                "category",
+                "contact",
+                "cost_center",
+                "payment_transaction",
+                "payment_transaction__bank_account",
+            )
+            .order_by("-due_date", "-id")
+        )
+        total_incomes = incomes_qs.count()
+        incomes_start = (incomes_page - 1) * page_size
+        incomes_end = incomes_start + page_size
+        incomes = incomes_qs[incomes_start:incomes_end]
+        incomes_total_pages = (total_incomes + page_size - 1) // page_size if total_incomes > 0 else 1
+
+        recurring_bills_ids = (
+            Transaction.objects.filter(cost_center=cost_center, company=company)
+            .exclude(recurring_bill_payments__isnull=True)
+            .values_list("recurring_bill_payments__recurring_bill_id", flat=True)
+            .distinct()
+        )
+        recurring_bills_qs = (
+            RecurringBill.objects.filter(id__in=recurring_bills_ids, company=company)
+            .select_related("category", "cost_center")
+            .order_by("-next_due_date", "-id")
+        )
+        total_recurring_bills = recurring_bills_qs.count()
+        recurring_bills_start = (recurring_bills_page - 1) * page_size
+        recurring_bills_end = recurring_bills_start + page_size
+        recurring_bills = recurring_bills_qs[recurring_bills_start:recurring_bills_end]
+        recurring_bills_total_pages = (total_recurring_bills + page_size - 1) // page_size if total_recurring_bills > 0 else 1
+
+        recurring_incomes_ids = (
+            Transaction.objects.filter(cost_center=cost_center, company=company)
+            .exclude(recurring_income_receipts__isnull=True)
+            .values_list("recurring_income_receipts__recurring_income_id", flat=True)
+            .distinct()
+        )
+        recurring_incomes_qs = (
+            RecurringIncome.objects.filter(id__in=recurring_incomes_ids, company=company)
+            .select_related("category", "cost_center")
+            .order_by("-next_due_date", "-id")
+        )
+        total_recurring_incomes = recurring_incomes_qs.count()
+        recurring_incomes_start = (recurring_incomes_page - 1) * page_size
+        recurring_incomes_end = recurring_incomes_start + page_size
+        recurring_incomes = recurring_incomes_qs[recurring_incomes_start:recurring_incomes_end]
+        recurring_incomes_total_pages = (total_recurring_incomes + page_size - 1) // page_size if total_recurring_incomes > 0 else 1
+
+        total_receitas = transactions_qs.filter(type=Transaction.Types.RECEITA).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        total_despesas = transactions_qs.filter(
+            type__in=[Transaction.Types.DESPESA, Transaction.Types.TRANSFERENCIA_EXTERNA, Transaction.Types.ESTORNO]
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        total_bills_amount = bills_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        total_incomes_amount = incomes_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+        return Response({
+            "cost_center": CostCenterSerializer(cost_center, context=self.get_serializer_context()).data,
+            "summary": {
+                "total_receitas": total_receitas,
+                "total_despesas": total_despesas,
+                "total_bills": total_bills_amount,
+                "total_incomes": total_incomes_amount,
+                "total_transactions": total_transactions,
+                "total_bills_count": total_bills,
+                "total_incomes_count": total_incomes,
+                "total_recurring_bills": total_recurring_bills,
+                "total_recurring_incomes": total_recurring_incomes,
+            },
+            "transactions": {
+                "items": TransactionSerializer(transactions, many=True, context=self.get_serializer_context()).data,
+                "pagination": {
+                    "page": transactions_page,
+                    "page_size": page_size,
+                    "total_pages": transactions_total_pages,
+                    "total_items": total_transactions,
+                    "has_next": transactions_page < transactions_total_pages,
+                    "has_previous": transactions_page > 1,
+                },
+            },
+            "bills": {
+                "items": BillSerializer(bills, many=True, context=self.get_serializer_context()).data,
+                "pagination": {
+                    "page": bills_page,
+                    "page_size": page_size,
+                    "total_pages": bills_total_pages,
+                    "total_items": total_bills,
+                    "has_next": bills_page < bills_total_pages,
+                    "has_previous": bills_page > 1,
+                },
+            },
+            "incomes": {
+                "items": IncomeSerializer(incomes, many=True, context=self.get_serializer_context()).data,
+                "pagination": {
+                    "page": incomes_page,
+                    "page_size": page_size,
+                    "total_pages": incomes_total_pages,
+                    "total_items": total_incomes,
+                    "has_next": incomes_page < incomes_total_pages,
+                    "has_previous": incomes_page > 1,
+                },
+            },
+            "recurring_bills": {
+                "items": RecurringBillSerializer(recurring_bills, many=True, context=self.get_serializer_context()).data,
+                "pagination": {
+                    "page": recurring_bills_page,
+                    "page_size": page_size,
+                    "total_pages": recurring_bills_total_pages,
+                    "total_items": total_recurring_bills,
+                    "has_next": recurring_bills_page < recurring_bills_total_pages,
+                    "has_previous": recurring_bills_page > 1,
+                },
+            },
+            "recurring_incomes": {
+                "items": RecurringIncomeSerializer(recurring_incomes, many=True, context=self.get_serializer_context()).data,
+                "pagination": {
+                    "page": recurring_incomes_page,
+                    "page_size": page_size,
+                    "total_pages": recurring_incomes_total_pages,
+                    "total_items": total_recurring_incomes,
+                    "has_next": recurring_incomes_page < recurring_incomes_total_pages,
+                    "has_previous": recurring_incomes_page > 1,
+                },
+            },
+        })
 
 
 class SubscriptionActivationView(ActiveCompanyMixin, APIView):

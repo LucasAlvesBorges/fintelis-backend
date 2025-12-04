@@ -14,7 +14,6 @@ from rest_framework.views import APIView
 
 from django.utils import timezone
 
-from apps.companies.models import CostCenter
 from .mixins import ActiveCompanyMixin
 from .models import (
     Bank,

@@ -16,7 +16,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.companies.models import Company
+from apps.companies.models import Company, CostCenter
 from apps.contacts.models import Contact
 from apps.financials.models import (
     Category,
@@ -119,6 +119,20 @@ class Command(BaseCommand):
                 company=company, name="Vendas", type=Category.Types.RECEITA
             )
 
+        # Buscar cost centers
+        cost_center = CostCenter.objects.filter(company=company).first()
+        
+        if not cost_center:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Nenhum centro de custo encontrado. Criando centro de custo padrão..."
+                )
+            )
+            cost_center = CostCenter.objects.create(
+                company=company,
+                name="Administração",
+            )
+
         # Buscar contacts (fornecedores para bills, clientes para incomes)
         all_contacts = list(Contact.objects.filter(company=company))
         
@@ -145,7 +159,7 @@ class Command(BaseCommand):
         with transaction.atomic():
             # Criar Recurring Bills
             recurring_bills = self._create_recurring_bills(
-                company, expense_category, months, supplier_contacts
+                company, expense_category, cost_center, months, supplier_contacts
             )
             self.stdout.write(
                 self.style.SUCCESS(
@@ -155,7 +169,7 @@ class Command(BaseCommand):
 
             # Criar Recurring Incomes
             recurring_incomes = self._create_recurring_incomes(
-                company, revenue_category, months, customer_contacts
+                company, revenue_category, cost_center, months, customer_contacts
             )
             self.stdout.write(
                 self.style.SUCCESS(
@@ -175,7 +189,7 @@ class Command(BaseCommand):
             f"   - {len(recurring_incomes)} Recurring Incomes com receipts"
         )
 
-    def _create_recurring_bills(self, company, category, months, contacts=None):
+    def _create_recurring_bills(self, company, category, cost_center, months, contacts=None):
         """Cria recurring bills com payments."""
         today = timezone.localdate()
         start_date = today - timedelta(days=months * 30)
@@ -241,6 +255,7 @@ class Command(BaseCommand):
             recurring_bill = RecurringBill.objects.create(
                 company=company,
                 category=category,
+                cost_center=cost_center,
                 contact=contact,
                 description=data["description"],
                 amount=data["amount"],
@@ -257,7 +272,7 @@ class Command(BaseCommand):
 
         return recurring_bills
 
-    def _create_recurring_incomes(self, company, category, months, contacts=None):
+    def _create_recurring_incomes(self, company, category, cost_center, months, contacts=None):
         """Cria recurring incomes com receipts."""
         today = timezone.localdate()
         start_date = today - timedelta(days=months * 30)
@@ -315,6 +330,7 @@ class Command(BaseCommand):
             recurring_income = RecurringIncome.objects.create(
                 company=company,
                 category=category,
+                cost_center=cost_center,
                 contact=contact,
                 description=data["description"],
                 amount=data["amount"],

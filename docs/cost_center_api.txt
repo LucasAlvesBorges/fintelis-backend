@@ -1,0 +1,607 @@
+# API de Cost Center (Centro de Custo)
+
+## Visão Geral
+
+A API de Cost Center permite gerenciar centros de custo da empresa. Um centro de custo pode ter um centro pai (hierarquia), e o código é gerado automaticamente.
+
+**Base URL:** `/api/v1/companies/cost-centers/`
+
+**Autenticação:** Requer autenticação JWT e company token (header `X-Company-Id`)
+
+---
+
+## Endpoints Disponíveis
+
+### 1. Listar Cost Centers (GET)
+
+Lista todos os centros de custo da empresa ativa.
+
+**Endpoint:** `GET /api/v1/companies/cost-centers/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+
+**Parâmetros de Query:** Nenhum
+
+**Nota:** Este endpoint **NÃO está paginado**. Retorna todos os cost centers da empresa em uma única resposta.
+
+**Resposta de Sucesso (200):**
+
+```json
+[
+  {
+    "id": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+    "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+    "name": "Administracao",
+    "code": "1",
+    "parent": null,
+    "parent_name": null,
+    "created_at": "2025-11-28T12:18:52.539238-03:00",
+    "updated_at": "2025-11-28T12:18:52.539247-03:00"
+  },
+  {
+    "id": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+    "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+    "name": "Departamento Comercial",
+    "code": "2",
+    "parent": null,
+    "parent_name": null,
+    "created_at": "2025-11-28T12:18:52.540763-03:00",
+    "updated_at": "2025-11-28T12:18:52.540767-03:00"
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+    "name": "Marketing",
+    "code": "2.1",
+    "parent": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc",
+    "parent_name": "Departamento Comercial",
+    "created_at": "2025-11-28T12:20:00.000000-03:00",
+    "updated_at": "2025-11-28T12:20:00.000000-03:00"
+  }
+]
+```
+
+**Campos da Resposta:**
+- `id` (UUID, read-only): Identificador único do centro de custo
+- `company` (UUID, read-only): ID da empresa proprietária
+- `name` (string): Nome do centro de custo
+- `code` (string, read-only): Código gerado automaticamente (ex: "1", "2.1", "2.2.1")
+- `parent` (UUID, nullable): ID do centro de custo pai (null para centros raiz)
+- `parent_name` (string, read-only): Nome do centro de custo pai
+- `created_at` (datetime, read-only): Data de criação
+- `updated_at` (datetime, read-only): Data da última atualização
+
+---
+
+### 2. Criar Cost Center (POST)
+
+Cria um novo centro de custo.
+
+**Endpoint:** `POST /api/v1/companies/cost-centers/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+**Body (JSON):**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `name` | string | Sim | Nome do centro de custo (máx. 255 caracteres) |
+| `parent` | UUID | Não | ID do centro de custo pai (para criar hierarquia) |
+
+**Exemplo de Request:**
+
+```json
+{
+  "name": "Teste Cost Center CRUD"
+}
+```
+
+**Exemplo de Request com Parent:**
+
+```json
+{
+  "name": "Marketing",
+  "parent": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc"
+}
+```
+
+**Resposta de Sucesso (201 Created):**
+
+```json
+{
+  "id": "1b18001a-6f5a-4fa1-b931-5212262d13e1",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "name": "Teste Cost Center CRUD",
+  "code": "4",
+  "parent": null,
+  "parent_name": null,
+  "created_at": "2025-12-04T14:28:46.317304-03:00",
+  "updated_at": "2025-12-04T14:28:46.317320-03:00"
+}
+```
+
+**Resposta de Erro (400 Bad Request):**
+
+```json
+{
+  "name": ["Este campo é obrigatório."]
+}
+```
+
+**Resposta de Erro - Parent de outra empresa (400):**
+
+```json
+{
+  "parent": ["Parent cost center must belong to the same company."]
+}
+```
+
+**Notas:**
+- O campo `code` é gerado automaticamente baseado na hierarquia
+- Se `parent` for fornecido, o código será gerado como `{parent.code}.{número_sequencial}`
+- Se `parent` for `null`, o código será um número sequencial simples (1, 2, 3, ...)
+- O `company` é automaticamente definido pela empresa ativa (do header `X-Company-Id`)
+
+---
+
+### 3. Buscar Cost Center Específico (GET)
+
+Retorna os detalhes de um centro de custo específico.
+
+**Endpoint:** `GET /api/v1/companies/cost-centers/{id}/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do centro de custo
+
+**Resposta de Sucesso (200):**
+
+```json
+{
+  "id": "1b18001a-6f5a-4fa1-b931-5212262d13e1",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "name": "Teste Cost Center CRUD",
+  "code": "4",
+  "parent": null,
+  "parent_name": null,
+  "created_at": "2025-12-04T14:28:46.317304-03:00",
+  "updated_at": "2025-12-04T14:28:46.317320-03:00"
+}
+```
+
+**Resposta de Erro (404 Not Found):**
+
+```json
+{
+  "detail": "Não encontrado."
+}
+```
+
+**Resposta de Erro - Cost Center de outra empresa (404):**
+
+```json
+{
+  "detail": "Não encontrado."
+}
+```
+
+---
+
+### 4. Atualizar Cost Center (PATCH)
+
+Atualiza parcialmente um centro de custo.
+
+**Endpoint:** `PATCH /api/v1/companies/cost-centers/{id}/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do centro de custo
+
+**Body (JSON):**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `name` | string | Não | Novo nome do centro de custo |
+| `parent` | UUID | Não | Novo centro de custo pai (pode ser null para remover hierarquia) |
+
+**Exemplo de Request:**
+
+```json
+{
+  "name": "Teste Cost Center CRUD - Atualizado"
+}
+```
+
+**Exemplo de Request - Mudar Parent:**
+
+```json
+{
+  "parent": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc"
+}
+```
+
+**Exemplo de Request - Remover Parent:**
+
+```json
+{
+  "parent": null
+}
+```
+
+**Resposta de Sucesso (200):**
+
+```json
+{
+  "id": "1b18001a-6f5a-4fa1-b931-5212262d13e1",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "name": "Teste Cost Center CRUD - Atualizado",
+  "code": "4",
+  "parent": null,
+  "parent_name": null,
+  "created_at": "2025-12-04T14:28:46.317304-03:00",
+  "updated_at": "2025-12-04T14:28:46.437228-03:00"
+}
+```
+
+**Notas:**
+- O campo `code` NÃO é atualizado quando `parent` é alterado (mantém o código original)
+- Apenas os campos enviados no body serão atualizados
+- O `updated_at` é atualizado automaticamente
+
+---
+
+### 5. Atualizar Cost Center (PUT)
+
+Atualiza completamente um centro de custo (substitui todos os campos editáveis).
+
+**Endpoint:** `PUT /api/v1/companies/cost-centers/{id}/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do centro de custo
+
+**Body (JSON):**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `name` | string | Sim | Nome do centro de custo |
+| `parent` | UUID | Não | Centro de custo pai (pode ser null) |
+
+**Exemplo de Request:**
+
+```json
+{
+  "name": "Teste Cost Center CRUD - PUT"
+}
+```
+
+**Resposta de Sucesso (200):**
+
+```json
+{
+  "id": "1b18001a-6f5a-4fa1-b931-5212262d13e1",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "name": "Teste Cost Center CRUD - PUT",
+  "code": "4",
+  "parent": null,
+  "parent_name": null,
+  "created_at": "2025-12-04T14:28:46.317304-03:00",
+  "updated_at": "2025-12-04T14:28:46.478678-03:00"
+}
+```
+
+**Nota:** Diferente do PATCH, o PUT requer que todos os campos editáveis sejam enviados.
+
+---
+
+### 6. Deletar Cost Center (DELETE)
+
+Remove um centro de custo.
+
+**Endpoint:** `DELETE /api/v1/companies/cost-centers/{id}/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do centro de custo
+
+**Resposta de Sucesso (204 No Content):**
+
+Sem corpo de resposta.
+
+**Resposta de Erro (404 Not Found):**
+
+```json
+{
+  "detail": "Não encontrado."
+}
+```
+
+**Resposta de Erro (400 Bad Request):**
+
+Se o centro de custo tiver filhos ou estiver sendo usado em transações/bills/incomes:
+
+```json
+{
+  "detail": "Não é possível deletar este centro de custo pois ele possui dependências."
+}
+```
+
+**Nota:** A exclusão pode falhar se o centro de custo tiver:
+- Centros de custo filhos
+- Transações associadas
+- Bills associados
+- Incomes associados
+- Recurring bills associados
+- Recurring incomes associados
+
+---
+
+### 7. Detalhes do Cost Center (GET)
+
+Retorna detalhes completos do centro de custo com todas as movimentações associadas (transações, bills, incomes, etc.), paginadas.
+
+**Endpoint:** `GET /api/v1/companies/cost-centers/{id}/details/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+
+**Parâmetros de URL:**
+- `id` (UUID): ID do centro de custo
+
+**Parâmetros de Query:**
+- `transactions_page` (int, opcional): Página de transações (padrão: 1)
+- `bills_page` (int, opcional): Página de bills (padrão: 1)
+- `incomes_page` (int, opcional): Página de incomes (padrão: 1)
+- `recurring_bills_page` (int, opcional): Página de recurring bills (padrão: 1)
+- `recurring_incomes_page` (int, opcional): Página de recurring incomes (padrão: 1)
+
+**Exemplo de Request:**
+
+```
+GET /api/v1/companies/cost-centers/1e28c820-e5c4-402e-a94a-5a8c9b8e7da5/details/?transactions_page=1&bills_page=1
+```
+
+**Resposta de Sucesso (200):**
+
+```json
+{
+  "cost_center": {
+    "id": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+    "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+    "name": "Administracao",
+    "code": "1",
+    "parent": null,
+    "parent_name": null,
+    "created_at": "2025-11-28T12:18:52.539238-03:00",
+    "updated_at": "2025-11-28T12:18:52.539247-03:00"
+  },
+  "summary": {
+    "total_receitas": "5000.00",
+    "total_despesas": "3000.00",
+    "total_bills": "2000.00",
+    "total_incomes": "4000.00",
+    "total_transactions": 10,
+    "total_bills_count": 5,
+    "total_incomes_count": 3,
+    "total_recurring_bills": 2,
+    "total_recurring_incomes": 1
+  },
+  "transactions": {
+    "items": [...],
+    "pagination": {
+      "page": 1,
+      "page_size": 5,
+      "total_pages": 2,
+      "total_items": 10,
+      "has_next": true,
+      "has_previous": false
+    }
+  },
+  "bills": {
+    "items": [...],
+    "pagination": {
+      "page": 1,
+      "page_size": 5,
+      "total_pages": 1,
+      "total_items": 5,
+      "has_next": false,
+      "has_previous": false
+    }
+  },
+  "incomes": {
+    "items": [...],
+    "pagination": {
+      "page": 1,
+      "page_size": 5,
+      "total_pages": 1,
+      "total_items": 3,
+      "has_next": false,
+      "has_previous": false
+    }
+  },
+  "recurring_bills": {
+    "items": [...],
+    "pagination": {
+      "page": 1,
+      "page_size": 5,
+      "total_pages": 1,
+      "total_items": 2,
+      "has_next": false,
+      "has_previous": false
+    }
+  },
+  "recurring_incomes": {
+    "items": [...],
+    "pagination": {
+      "page": 1,
+      "page_size": 5,
+      "total_pages": 1,
+      "total_items": 1,
+      "has_next": false,
+      "has_previous": false
+    }
+  }
+}
+```
+
+**Campos da Resposta:**
+- `cost_center`: Objeto com os dados do centro de custo
+- `summary`: Resumo financeiro
+  - `total_receitas`: Soma de todas as receitas (transações)
+  - `total_despesas`: Soma de todas as despesas (transações)
+  - `total_bills`: Soma de todos os bills pendentes
+  - `total_incomes`: Soma de todos os incomes pendentes
+  - `total_transactions`: Quantidade total de transações
+  - `total_bills_count`: Quantidade total de bills
+  - `total_incomes_count`: Quantidade total de incomes
+  - `total_recurring_bills`: Quantidade de recurring bills
+  - `total_recurring_incomes`: Quantidade de recurring incomes
+- `transactions`: Lista paginada de transações (5 por página)
+- `bills`: Lista paginada de bills (5 por página)
+- `incomes`: Lista paginada de incomes (5 por página)
+- `recurring_bills`: Lista paginada de recurring bills (5 por página)
+- `recurring_incomes`: Lista paginada de recurring incomes (5 por página)
+
+**Resposta de Erro (404 Not Found):**
+
+```json
+{
+  "detail": "Centro de custo não pertence à empresa ativa."
+}
+```
+
+---
+
+## Códigos de Status HTTP
+
+- `200 OK`: Requisição bem-sucedida (GET, PUT, PATCH)
+- `201 Created`: Recurso criado com sucesso (POST)
+- `204 No Content`: Recurso deletado com sucesso (DELETE)
+- `400 Bad Request`: Erro de validação ou dados inválidos
+- `401 Unauthorized`: Token de autenticação inválido ou ausente
+- `403 Forbidden`: Usuário não tem permissão para acessar o recurso
+- `404 Not Found`: Recurso não encontrado ou não pertence à empresa ativa
+- `405 Method Not Allowed`: Método HTTP não permitido para o endpoint
+- `500 Internal Server Error`: Erro interno do servidor
+
+---
+
+## Validações e Regras de Negócio
+
+1. **Campo `name`**: Obrigatório, máximo de 255 caracteres
+2. **Campo `parent`**: 
+   - Opcional (pode ser `null`)
+   - Se fornecido, deve ser um UUID válido de um cost center da mesma empresa
+   - Não pode criar ciclos na hierarquia (um cost center não pode ser pai de si mesmo ou de seus ancestrais)
+3. **Campo `code`**: 
+   - Gerado automaticamente
+   - Para centros raiz: números sequenciais (1, 2, 3, ...)
+   - Para centros filhos: `{parent.code}.{número_sequencial}` (ex: "2.1", "2.2", "2.1.1")
+   - Único por empresa
+4. **Campo `company`**: 
+   - Definido automaticamente pela empresa ativa (header `X-Company-Id`)
+   - Não pode ser alterado após a criação
+5. **Exclusão**: 
+   - Não é possível deletar um cost center que possui dependências (filhos, transações, bills, incomes, etc.)
+
+---
+
+## Exemplos de Uso
+
+### Criar hierarquia de cost centers
+
+```bash
+# 1. Criar centro raiz
+POST /api/v1/companies/cost-centers/
+{
+  "name": "Administracao"
+}
+# Resposta: code = "1"
+
+# 2. Criar filho do centro raiz
+POST /api/v1/companies/cost-centers/
+{
+  "name": "Recursos Humanos",
+  "parent": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5"
+}
+# Resposta: code = "1.1"
+
+# 3. Criar outro filho do mesmo pai
+POST /api/v1/companies/cost-centers/
+{
+  "name": "Financeiro",
+  "parent": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5"
+}
+# Resposta: code = "1.2"
+
+# 4. Criar neto (filho de um filho)
+POST /api/v1/companies/cost-centers/
+{
+  "name": "Contas a Pagar",
+  "parent": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"  # ID do Financeiro
+}
+# Resposta: code = "1.2.1"
+```
+
+### Atualizar nome de um cost center
+
+```bash
+PATCH /api/v1/companies/cost-centers/1e28c820-e5c4-402e-a94a-5a8c9b8e7da5/
+{
+  "name": "Administração e Gestão"
+}
+```
+
+### Mover cost center para outro pai
+
+```bash
+PATCH /api/v1/companies/cost-centers/a1b2c3d4-e5f6-7890-abcd-ef1234567890/
+{
+  "parent": "f16915d0-af2a-4bb0-9c6e-981c70e47ccc"
+}
+# Nota: O código NÃO muda após mover o parent
+```
+
+### Remover hierarquia (tornar raiz)
+
+```bash
+PATCH /api/v1/companies/cost-centers/a1b2c3d4-e5f6-7890-abcd-ef1234567890/
+{
+  "parent": null
+}
+# Nota: O código NÃO muda após remover o parent
+```
+
+---
+
+## Notas Importantes
+
+1. **Autenticação**: Todos os endpoints requerem autenticação JWT e company token
+2. **Scoping**: Apenas cost centers da empresa ativa (definida no header `X-Company-Id`) são acessíveis
+3. **Código Automático**: O campo `code` é gerado automaticamente e não pode ser editado manualmente
+4. **Hierarquia**: A hierarquia é flexível, mas o código não é recalculado quando o `parent` é alterado
+5. **Paginação**: 
+   - O endpoint `GET /cost-centers/` **NÃO está paginado** - retorna todos os cost centers da empresa
+   - O endpoint `GET /cost-centers/{id}/details/` retorna 5 itens por página para cada tipo de movimentação
+6. **Ordenação**: Os cost centers são ordenados por `company__name` e `code`
+

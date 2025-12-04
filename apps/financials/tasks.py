@@ -16,11 +16,13 @@ def generate_recurring_bills() -> int:
     today = timezone.localdate()
     created = 0
     queryset = RecurringBill.objects.filter(is_active=True, next_due_date__lte=today)
-    for template in queryset.select_related('company', 'category'):
+    for template in queryset.select_related('company', 'category', 'cost_center', 'contact'):
         with transaction.atomic():
             Bill.objects.create(
                 company=template.company,
                 category=template.category,
+                cost_center=template.cost_center,
+                contact=template.contact,
                 description=template.description,
                 amount=template.amount,
                 due_date=template.next_due_date,
@@ -36,11 +38,13 @@ def generate_recurring_incomes() -> int:
     today = timezone.localdate()
     created = 0
     queryset = RecurringIncome.objects.filter(is_active=True, next_due_date__lte=today)
-    for template in queryset.select_related('company', 'category'):
+    for template in queryset.select_related('company', 'category', 'cost_center', 'contact'):
         with transaction.atomic():
             Income.objects.create(
                 company=template.company,
                 category=template.category,
+                cost_center=template.cost_center,
+                contact=template.contact,
                 description=template.description,
                 amount=template.amount,
                 due_date=template.next_due_date,

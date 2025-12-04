@@ -359,7 +359,6 @@ class BillSerializer(CompanyScopedModelSerializer):
         )
         extra_kwargs = {
             "contact": {"required": False, "allow_null": True},
-            "cost_center": {"required": False, "allow_null": True},
             "order": {"read_only": True},
         }
 
@@ -412,7 +411,6 @@ class IncomeSerializer(CompanyScopedModelSerializer):
         )
         extra_kwargs = {
             "contact": {"required": False, "allow_null": True},
-            "cost_center": {"required": False, "allow_null": True},
             "order": {"read_only": True},
         }
 
@@ -464,6 +462,15 @@ class RecurringBillSerializer(CompanyScopedModelSerializer):
             "created_at",
             "updated_at",
         )
+        extra_kwargs = {
+            "contact": {"required": False, "allow_null": True},
+            "end_date": {"required": False, "allow_null": True},
+        }
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("O valor deve ser maior que zero.")
+        return value
 
     def _regenerate_payments(self, instance: RecurringBill):
         today = timezone.localdate()
@@ -557,6 +564,15 @@ class RecurringIncomeSerializer(CompanyScopedModelSerializer):
             "created_at",
             "updated_at",
         )
+        extra_kwargs = {
+            "contact": {"required": False, "allow_null": True},
+            "end_date": {"required": False, "allow_null": True},
+        }
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("O valor deve ser maior que zero.")
+        return value
 
     def _regenerate_receipts(self, instance: RecurringIncome):
         today = timezone.localdate()
