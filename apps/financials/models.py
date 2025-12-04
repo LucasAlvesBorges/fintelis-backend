@@ -588,12 +588,15 @@ class Bill(TimeStampedModel):
     def clean(self):
         super().clean()
         errors = {}
-        if self.category:
-            if self.category.company_id != self.company_id:
+        if not self.category:
+            errors["category"] = "Category é obrigatória."
+        elif self.category.company_id != self.company_id:
                 errors["category"] = "Category must belong to the same company."
-            elif self.category.type != Category.Types.DESPESA:
+        elif self.category.type != Category.Types.DESPESA:
                 errors["category"] = "Bills must reference an expense category."
-        if self.cost_center and self.cost_center.company_id != self.company_id:
+        if not self.cost_center:
+            errors["cost_center"] = "Cost center é obrigatório."
+        elif self.cost_center.company_id != self.company_id:
             errors["cost_center"] = "Cost center must belong to the same company."
         if self.contact:
             if self.contact.company_id != self.company_id:
@@ -699,12 +702,15 @@ class Income(TimeStampedModel):
     def clean(self):
         super().clean()
         errors = {}
-        if self.category:
-            if self.category.company_id != self.company_id:
-                errors["category"] = "Category must belong to the same company."
-            elif self.category.type != Category.Types.RECEITA:
-                errors["category"] = "Income must reference a revenue category."
-        if self.cost_center and self.cost_center.company_id != self.company_id:
+        if not self.category:
+            errors["category"] = "Category é obrigatória."
+        elif self.category.company_id != self.company_id:
+            errors["category"] = "Category must belong to the same company."
+        elif self.category.type != Category.Types.RECEITA:
+            errors["category"] = "Income must reference a revenue category."
+        if not self.cost_center:
+            errors["cost_center"] = "Cost center é obrigatório."
+        elif self.cost_center.company_id != self.company_id:
             errors["cost_center"] = "Cost center must belong to the same company."
         if self.contact:
             if self.contact.company_id != self.company_id:
@@ -800,15 +806,25 @@ class RecurringBill(TimeStampedModel):
     def clean(self):
         super().clean()
         errors = {}
-        if self.category:
-            if self.category.company_id != self.company_id:
-                errors["category"] = "Category must belong to the same company."
-            elif self.category.type != Category.Types.DESPESA:
-                errors["category"] = (
-                    "Recurring bills must reference an expense category."
-                )
-        if self.cost_center and self.cost_center.company_id != self.company_id:
+        if not self.category:
+            errors["category"] = "Category é obrigatória."
+        elif self.category.company_id != self.company_id:
+            errors["category"] = "Category must belong to the same company."
+        elif self.category.type != Category.Types.DESPESA:
+            errors["category"] = (
+                "Recurring bills must reference an expense category."
+            )
+        if not self.cost_center:
+            errors["cost_center"] = "Cost center é obrigatório."
+        elif self.cost_center.company_id != self.company_id:
             errors["cost_center"] = "Cost center must belong to the same company."
+        if self.contact:
+            if self.contact.company_id != self.company_id:
+                errors["contact"] = "Contact must belong to the same company."
+            elif self.contact.type == Contact.Types.CLIENTE:
+                errors["contact"] = (
+                    "Contas recorrentes a pagar devem ser vinculadas a um Fornecedor."
+                )
         if self.end_date and self.end_date < self.start_date:
             errors["end_date"] = "End date cannot be earlier than the start date."
         if self.next_due_date < self.start_date:
@@ -855,8 +871,10 @@ class RecurringBillPayment(TimeStampedModel):
     )
     recurring_bill = models.ForeignKey(
         RecurringBill,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="payments",
+        null=True,
+        blank=True,
     )
     transaction = models.ForeignKey(
         Transaction,
@@ -879,6 +897,7 @@ class RecurringBillPayment(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["company", "recurring_bill", "due_date"],
                 name="uniq_recurring_bill_payment_cycle",
+                condition=Q(recurring_bill__isnull=False),
             )
         ]
 
@@ -916,7 +935,8 @@ class RecurringBillPayment(TimeStampedModel):
                     RecurringBill.objects.filter(id=self.recurring_bill.id).update(is_active=False)
 
     def __str__(self):
-        return f"{self.recurring_bill} - {self.due_date} ({self.get_status_display()})"
+        bill_desc = self.recurring_bill.description if self.recurring_bill else "Histórico"
+        return f"{bill_desc} - {self.due_date} ({self.get_status_display()})"
 
 
 class RecurringIncomeReceipt(TimeStampedModel):
@@ -931,8 +951,10 @@ class RecurringIncomeReceipt(TimeStampedModel):
     )
     recurring_income = models.ForeignKey(
         "RecurringIncome",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="receipts",
+        null=True,
+        blank=True,
     )
     transaction = models.ForeignKey(
         Transaction,
@@ -955,6 +977,7 @@ class RecurringIncomeReceipt(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["company", "recurring_income", "due_date"],
                 name="uniq_recurring_income_receipt_cycle",
+                condition=Q(recurring_income__isnull=False),
             )
         ]
 
@@ -992,7 +1015,8 @@ class RecurringIncomeReceipt(TimeStampedModel):
                     RecurringIncome.objects.filter(id=self.recurring_income.id).update(is_active=False)
 
     def __str__(self):
-        return f"{self.recurring_income} - {self.due_date} ({self.get_status_display()})"
+        income_desc = self.recurring_income.description if self.recurring_income else "Histórico"
+        return f"{income_desc} - {self.due_date} ({self.get_status_display()})"
 
 
 class RecurringIncome(TimeStampedModel):
@@ -1045,17 +1069,25 @@ class RecurringIncome(TimeStampedModel):
     def clean(self):
         super().clean()
         errors = {}
-        if self.category:
-            if self.category.company_id != self.company_id:
-                errors["category"] = "Category must belong to the same company."
-            elif self.category.type != Category.Types.RECEITA:
-                errors["category"] = (
-                    "Recurring incomes must reference a revenue category."
-                )
-        if self.cost_center and self.cost_center.company_id != self.company_id:
+        if not self.category:
+            errors["category"] = "Category é obrigatória."
+        elif self.category.company_id != self.company_id:
+            errors["category"] = "Category must belong to the same company."
+        elif self.category.type != Category.Types.RECEITA:
+            errors["category"] = (
+                "Recurring incomes must reference a revenue category."
+            )
+        if not self.cost_center:
+            errors["cost_center"] = "Cost center é obrigatório."
+        elif self.cost_center.company_id != self.company_id:
             errors["cost_center"] = "Cost center must belong to the same company."
-        if self.contact and self.contact.company_id != self.company_id:
-            errors["contact"] = "Contact must belong to the same company."
+        if self.contact:
+            if self.contact.company_id != self.company_id:
+                errors["contact"] = "Contact must belong to the same company."
+            elif self.contact.type == Contact.Types.FORNECEDOR:
+                errors["contact"] = (
+                    "Contas recorrentes a receber devem ser vinculadas a um Cliente."
+                )
         if self.end_date and self.end_date < self.start_date:
             errors["end_date"] = "End date cannot be earlier than the start date."
         if self.next_due_date < self.start_date:

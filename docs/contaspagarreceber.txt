@@ -1,0 +1,874 @@
+# API de Contas a Pagar e Receber
+
+## Visão Geral
+
+Esta documentação descreve os endpoints POST para criar:
+- **Bill** (Conta a Pagar)
+- **Income** (Conta a Receber)
+- **RecurringBill** (Despesa Recorrente)
+- **RecurringIncome** (Receita Recorrente)
+- **Transaction** (Despesa Única e Venda Única)
+
+**Base URL:** `/api/v1/financials/`
+
+**Autenticação:** Requer autenticação JWT e company token (header `X-Company-Id`)
+
+---
+
+## 1. Criar Conta a Pagar (Bill)
+
+Cria uma nova conta a pagar.
+
+**Endpoint:** `POST /api/v1/financials/bills/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+### Parâmetros (Body JSON)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `description` | string | Sim | Descrição da conta a pagar (máx. 255 caracteres) |
+| `amount` | decimal | Sim | Valor da conta (deve ser maior que zero) |
+| `due_date` | date (YYYY-MM-DD) | Sim | Data de vencimento |
+| `category` | UUID | Sim | ID da categoria (deve ser tipo "despesa") |
+| `cost_center` | UUID | Sim | ID do centro de custo |
+| `contact` | UUID | Não | ID do contato/fornecedor (deve ser tipo "fornecedor") |
+| `status` | string | Não | Status inicial: `"a_vencer"` (padrão) ou `"quitada"` |
+
+### Exemplo de Request
+
+```json
+{
+  "description": "Pagamento de fornecedor - Material de escritório",
+  "amount": "1500.00",
+  "due_date": "2025-12-15",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "contact": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "a_vencer"
+}
+```
+
+### Resposta de Sucesso (201 Created)
+
+```json
+{
+  "id": "cba54d9d-1234-5678-9abc-def123456789",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "company_name": "Startec Serviços e Tecnologia",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "category_name": "Despesas Operacionais",
+  "category_code": "2",
+  "contact": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "contact_name": "Fornecedor ABC",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "cost_center_name": "Administracao",
+  "order": 1,
+  "order_code": "#01",
+  "payment_transaction": null,
+  "description": "Pagamento de fornecedor - Material de escritório",
+  "amount": "1500.00",
+  "due_date": "2025-12-15",
+  "status": "a_vencer",
+  "created_at": "2025-12-04T14:10:37.510531-03:00",
+  "updated_at": "2025-12-04T14:10:37.510531-03:00"
+}
+```
+
+### Respostas de Erro
+
+**400 Bad Request - Campo obrigatório ausente:**
+```json
+{
+  "category": ["Este campo é obrigatório."],
+  "cost_center": ["Este campo é obrigatório."]
+}
+```
+
+**400 Bad Request - Validação de categoria:**
+```json
+{
+  "category": ["Bills must reference an expense category."]
+}
+```
+
+**400 Bad Request - Validação de contato:**
+```json
+{
+  "contact": ["Contas a pagar devem ser vinculadas a um Fornecedor."]
+}
+```
+
+---
+
+## 2. Criar Conta a Receber (Income)
+
+Cria uma nova conta a receber.
+
+**Endpoint:** `POST /api/v1/financials/incomes/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+### Parâmetros (Body JSON)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `description` | string | Sim | Descrição da conta a receber (máx. 255 caracteres) |
+| `amount` | decimal | Sim | Valor da conta (deve ser maior que zero) |
+| `due_date` | date (YYYY-MM-DD) | Sim | Data de vencimento |
+| `category` | UUID | Sim | ID da categoria (deve ser tipo "receita") |
+| `cost_center` | UUID | Sim | ID do centro de custo |
+| `contact` | UUID | Não | ID do contato/cliente (deve ser tipo "cliente") |
+| `status` | string | Não | Status inicial: `"pendente"` (padrão) ou `"recebido"` |
+
+### Exemplo de Request
+
+```json
+{
+  "description": "Faturamento cliente - Serviços prestados",
+  "amount": "5000.00",
+  "due_date": "2025-12-20",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "contact": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "status": "pendente"
+}
+```
+
+### Resposta de Sucesso (201 Created)
+
+```json
+{
+  "id": "a937e280-1234-5678-9abc-def123456789",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "company_name": "Startec Serviços e Tecnologia",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "category_name": "Vendas",
+  "category_code": "1",
+  "contact": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "contact_name": "Cliente XYZ",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "cost_center_name": "Administracao",
+  "order": 2,
+  "order_code": "#02",
+  "payment_transaction": null,
+  "description": "Faturamento cliente - Serviços prestados",
+  "amount": "5000.00",
+  "due_date": "2025-12-20",
+  "status": "pendente",
+  "created_at": "2025-12-04T14:10:37.624178-03:00",
+  "updated_at": "2025-12-04T14:10:37.624178-03:00"
+}
+```
+
+### Respostas de Erro
+
+**400 Bad Request - Campo obrigatório ausente:**
+```json
+{
+  "category": ["Este campo é obrigatório."],
+  "cost_center": ["Este campo é obrigatório."]
+}
+```
+
+**400 Bad Request - Validação de categoria:**
+```json
+{
+  "category": ["Income must reference a revenue category."]
+}
+```
+
+**400 Bad Request - Validação de contato:**
+```json
+{
+  "contact": ["Contas a receber devem ser vinculadas a um Cliente."]
+}
+```
+
+---
+
+## 3. Criar Despesa Recorrente (RecurringBill)
+
+Cria uma nova despesa recorrente. Ao criar, o sistema automaticamente gera os pagamentos futuros baseados na frequência.
+
+**Endpoint:** `POST /api/v1/financials/recurring-bills/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+### Parâmetros (Body JSON)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `description` | string | Sim | Descrição da despesa recorrente (máx. 255 caracteres) |
+| `amount` | decimal | Sim | Valor de cada parcela (deve ser maior que zero) |
+| `frequency` | string | Sim | Frequência: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"yearly"` |
+| `start_date` | date (YYYY-MM-DD) | Sim | Data de início da recorrência |
+| `next_due_date` | date (YYYY-MM-DD) | Sim | Data do próximo vencimento |
+| `category` | UUID | Sim | ID da categoria (deve ser tipo "despesa") |
+| `cost_center` | UUID | Sim | ID do centro de custo |
+| `contact` | UUID | Não | ID do contato/fornecedor (deve ser tipo "fornecedor") |
+| `end_date` | date (YYYY-MM-DD) | Não | Data de término da recorrência (null = sem data de término) |
+| `is_active` | boolean | Não | Se a despesa está ativa (padrão: `true`) |
+
+### Exemplo de Request
+
+```json
+{
+  "description": "Assinatura mensal - Software de Gestão",
+  "amount": "299.00",
+  "frequency": "monthly",
+  "start_date": "2025-01-01",
+  "next_due_date": "2025-02-01",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "contact": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "end_date": null,
+  "is_active": true
+}
+```
+
+### Resposta de Sucesso (201 Created)
+
+```json
+{
+  "id": "15b443c4-1234-5678-9abc-def123456789",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "company_name": "Startec Serviços e Tecnologia",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "category_name": "Despesas Operacionais",
+  "category_code": "2",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "cost_center_name": "Administracao",
+  "contact": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "contact_name": "Fornecedor ABC",
+  "order": 3,
+  "order_code": "#03",
+  "description": "Assinatura mensal - Software de Gestão",
+  "amount": "299.00",
+  "frequency": "monthly",
+  "start_date": "2025-01-01",
+  "end_date": null,
+  "next_due_date": "2025-02-01",
+  "is_active": true,
+  "created_at": "2025-12-04T14:28:46.317304-03:00",
+  "updated_at": "2025-12-04T14:28:46.317304-03:00"
+}
+```
+
+### Respostas de Erro
+
+**400 Bad Request - Campo obrigatório ausente:**
+```json
+{
+  "category": ["Este campo é obrigatório."],
+  "cost_center": ["Este campo é obrigatório."],
+  "amount": ["O valor deve ser maior que zero."]
+}
+```
+
+**400 Bad Request - Validação de categoria:**
+```json
+{
+  "category": ["Recurring bills must reference an expense category."]
+}
+```
+
+**400 Bad Request - Validação de contato:**
+```json
+{
+  "contact": ["Contas recorrentes a pagar devem ser vinculadas a um Fornecedor."]
+}
+```
+
+**400 Bad Request - Validação de data:**
+```json
+{
+  "end_date": ["End date cannot be earlier than the start date."],
+  "next_due_date": ["Next due date must be on or after the start date."]
+}
+```
+
+### Notas Importantes
+
+- Ao criar uma despesa recorrente, o sistema automaticamente gera os pagamentos futuros (RecurringBillPayment) para os próximos 12 meses
+- Os pagamentos são gerados apenas para datas futuras (a partir de hoje)
+- Se `end_date` for fornecido, os pagamentos serão gerados até essa data
+- O campo `next_due_date` deve ser igual ou posterior a `start_date`
+
+---
+
+## 4. Criar Receita Recorrente (RecurringIncome)
+
+Cria uma nova receita recorrente. Ao criar, o sistema automaticamente gera os recebimentos futuros baseados na frequência.
+
+**Endpoint:** `POST /api/v1/financials/recurring-incomes/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+### Parâmetros (Body JSON)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `description` | string | Sim | Descrição da receita recorrente (máx. 255 caracteres) |
+| `amount` | decimal | Sim | Valor de cada parcela (deve ser maior que zero) |
+| `frequency` | string | Sim | Frequência: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"yearly"` |
+| `start_date` | date (YYYY-MM-DD) | Sim | Data de início da recorrência |
+| `next_due_date` | date (YYYY-MM-DD) | Sim | Data do próximo vencimento |
+| `category` | UUID | Sim | ID da categoria (deve ser tipo "receita") |
+| `cost_center` | UUID | Sim | ID do centro de custo |
+| `contact` | UUID | Não | ID do contato/cliente (deve ser tipo "cliente") |
+| `end_date` | date (YYYY-MM-DD) | Não | Data de término da recorrência (null = sem data de término) |
+| `is_active` | boolean | Não | Se a receita está ativa (padrão: `true`) |
+
+### Exemplo de Request
+
+```json
+{
+  "description": "Assinatura cliente mensal - Serviços Premium",
+  "amount": "1000.00",
+  "frequency": "monthly",
+  "start_date": "2025-01-01",
+  "next_due_date": "2025-02-01",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "contact": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "end_date": null,
+  "is_active": true
+}
+```
+
+### Resposta de Sucesso (201 Created)
+
+```json
+{
+  "id": "3ac50fac-1234-5678-9abc-def123456789",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "company_name": "Startec Serviços e Tecnologia",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "category_name": "Vendas",
+  "category_code": "1",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "cost_center_name": "Administracao",
+  "contact": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "contact_name": "Cliente XYZ",
+  "order": 4,
+  "order_code": "#04",
+  "description": "Assinatura cliente mensal - Serviços Premium",
+  "amount": "1000.00",
+  "frequency": "monthly",
+  "start_date": "2025-01-01",
+  "end_date": null,
+  "next_due_date": "2025-02-01",
+  "is_active": true,
+  "created_at": "2025-12-04T14:28:46.317304-03:00",
+  "updated_at": "2025-12-04T14:28:46.317304-03:00"
+}
+```
+
+### Respostas de Erro
+
+**400 Bad Request - Campo obrigatório ausente:**
+```json
+{
+  "category": ["Este campo é obrigatório."],
+  "cost_center": ["Este campo é obrigatório."],
+  "amount": ["O valor deve ser maior que zero."]
+}
+```
+
+**400 Bad Request - Validação de categoria:**
+```json
+{
+  "category": ["Recurring incomes must reference a revenue category."]
+}
+```
+
+**400 Bad Request - Validação de contato:**
+```json
+{
+  "contact": ["Contas recorrentes a receber devem ser vinculadas a um Cliente."]
+}
+```
+
+### Notas Importantes
+
+- Ao criar uma receita recorrente, o sistema automaticamente gera os recebimentos futuros (RecurringIncomeReceipt) para os próximos 12 meses
+- Os recebimentos são gerados apenas para datas futuras (a partir de hoje)
+- Se `end_date` for fornecido, os recebimentos serão gerados até essa data
+- O campo `next_due_date` deve ser igual ou posterior a `start_date`
+
+---
+
+## 5. Criar Despesa Única (Transaction - DESPESA)
+
+Cria uma transação de despesa única (já paga, registrada diretamente como movimentação).
+
+**Endpoint:** `POST /api/v1/financials/transactions/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+### Parâmetros (Body JSON)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `description` | string | Sim | Descrição da transação (máx. 255 caracteres) |
+| `amount` | decimal | Sim | Valor da transação (deve ser maior que zero) |
+| `type` | string | Sim | Tipo: `"despesa"` (para despesa única) |
+| `transaction_date` | date (YYYY-MM-DD) | Sim | Data da transação |
+| `bank_account` | UUID | Não* | ID da conta bancária (*obrigatório se não fornecer `cash_register`) |
+| `cash_register` | UUID | Não* | ID do caixa (*obrigatório se não fornecer `bank_account`) |
+| `category` | UUID | Não | ID da categoria (deve ser tipo "despesa" se fornecido) |
+| `cost_center` | UUID | Não | ID do centro de custo |
+| `contact` | UUID | Não | ID do contato/fornecedor |
+| `payment_method` | UUID | Não | ID do método de pagamento (ver `/api/v1/financials/payment-methods/`) |
+
+### Exemplo de Request - Despesa Única
+
+```json
+{
+  "description": "Compra única - Material de escritório",
+  "amount": "250.00",
+  "type": "despesa",
+  "transaction_date": "2025-12-04",
+  "bank_account": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "contact": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "payment_method": "c1d2e3f4-a5b6-7890-cdef-123456789012"
+}
+```
+
+### Resposta de Sucesso (201 Created) - Despesa Única
+
+```json
+{
+  "id": "d1e2f3a4-b5c6-7890-def1-234567890123",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "company_name": "Startec Serviços e Tecnologia",
+  "bank_account": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
+  "bank_account_name": "Conta Corrente - Banco do Brasil",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "category_name": "Despesas Operacionais",
+  "cash_register": null,
+  "cash_register_name": null,
+  "contact": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "contact_name": "Fornecedor ABC",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "cost_center_name": "Administracao",
+  "payment_method": "c1d2e3f4-a5b6-7890-cdef-123456789012",
+  "payment_method_name": "Cartão de Débito",
+  "order": 5,
+  "order_code": "#05",
+  "related_transaction": null,
+  "linked_transaction": null,
+  "description": "Compra única - Material de escritório",
+  "amount": "250.00",
+  "type": "despesa",
+  "transaction_date": "2025-12-04",
+  "created_at": "2025-12-04T15:30:00.000000-03:00",
+  "updated_at": "2025-12-04T15:30:00.000000-03:00"
+}
+```
+
+### Respostas de Erro - Despesa Única
+
+**400 Bad Request - Validação de valor:**
+```json
+{
+  "amount": ["Amount must be greater than zero."]
+}
+```
+
+**400 Bad Request - Validação de categoria:**
+```json
+{
+  "category": ["Category type must match transaction type."]
+}
+```
+
+**400 Bad Request - Validação de tipo:**
+```json
+{
+  "type": ["\"despesa_rapida\" não é um tipo válido."]
+}
+```
+
+**Nota:** O tipo correto é `"despesa"`, não `"despesa_rapida"`.
+
+---
+
+## 6. Criar Venda Única (Transaction - RECEITA)
+
+Cria uma transação de venda única (já recebida, registrada diretamente como movimentação).
+
+**Endpoint:** `POST /api/v1/financials/transactions/`
+
+**Headers:**
+- `Authorization: Bearer {access_token}`
+- `X-Company-Id: {company_uuid}`
+- `Content-Type: application/json`
+
+### Parâmetros (Body JSON)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `description` | string | Sim | Descrição da transação (máx. 255 caracteres) |
+| `amount` | decimal | Sim | Valor da transação (deve ser maior que zero) |
+| `type` | string | Sim | Tipo: `"receita"` (para venda única) |
+| `transaction_date` | date (YYYY-MM-DD) | Sim | Data da transação |
+| `bank_account` | UUID | Não* | ID da conta bancária (*obrigatório se não fornecer `cash_register`) |
+| `cash_register` | UUID | Não* | ID do caixa/PDV (*obrigatório se não fornecer `bank_account`. Quando fornecido, o `bank_account` é preenchido automaticamente com o `default_bank_account` do caixa) |
+| `category` | UUID | Não | ID da categoria (deve ser tipo "receita" se fornecido) |
+| `cost_center` | UUID | Não | ID do centro de custo |
+| `contact` | UUID | Não | ID do contato/cliente (*não necessário quando `cash_register` é fornecido, pois é venda para cliente comum no caixa) |
+| `payment_method` | UUID | Não | ID do método de pagamento (ver `/api/v1/financials/payment-methods/`) |
+
+### Notas Importantes sobre Cash Register
+
+Quando `cash_register` é fornecido para uma transação de receita:
+- O campo `bank_account` **não precisa ser fornecido** - será preenchido automaticamente com o `default_bank_account` do caixa
+- O campo `contact` **não precisa ser fornecido** - é venda para cliente comum no caixa (venda no PDV)
+- O sistema valida automaticamente que o `bank_account` (se fornecido) corresponde ao `default_bank_account` do `cash_register`
+
+### Exemplo de Request - Venda Única (com bank_account)
+
+```json
+{
+  "description": "Venda única - Serviço prestado",
+  "amount": "800.00",
+  "type": "receita",
+  "transaction_date": "2025-12-04",
+  "bank_account": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "contact": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "payment_method": "c1d2e3f4-a5b6-7890-cdef-123456789012"
+}
+```
+
+### Exemplo de Request - Venda Única (com cash_register)
+
+```json
+{
+  "description": "Venda única - Venda no PDV",
+  "amount": "150.00",
+  "type": "receita",
+  "transaction_date": "2025-12-04",
+  "cash_register": "174fe7e8-0ba5-4c5e-98ea-e78a0acf0e44",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "payment_method": "c1d2e3f4-a5b6-7890-cdef-123456789012"
+}
+```
+
+**Nota:** Quando `cash_register` é fornecido:
+- `bank_account` não precisa ser fornecido (será preenchido automaticamente)
+- `contact` não precisa ser fornecido (venda para cliente comum no caixa)
+
+### Resposta de Sucesso (201 Created) - Venda Única (com bank_account)
+
+```json
+{
+  "id": "e2f3a4b5-c6d7-8901-ef12-345678901234",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "company_name": "Startec Serviços e Tecnologia",
+  "bank_account": "f1a2b3c4-d5e6-7890-abcd-ef1234567890",
+  "bank_account_name": "Conta Corrente - Banco do Brasil",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "category_name": "Vendas",
+  "cash_register": null,
+  "cash_register_name": null,
+  "contact": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "contact_name": "Cliente XYZ",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "cost_center_name": "Administracao",
+  "payment_method": "c1d2e3f4-a5b6-7890-cdef-123456789012",
+  "payment_method_name": "Cartão de Débito",
+  "order": 6,
+  "order_code": "#06",
+  "related_transaction": null,
+  "linked_transaction": null,
+  "description": "Venda única - Serviço prestado",
+  "amount": "800.00",
+  "type": "receita",
+  "transaction_date": "2025-12-04",
+  "created_at": "2025-12-04T15:30:00.000000-03:00",
+  "updated_at": "2025-12-04T15:30:00.000000-03:00"
+}
+```
+
+### Resposta de Sucesso (201 Created) - Venda Única (com cash_register)
+
+```json
+{
+  "id": "c6020462-55a0-4e32-a416-2a761447da39",
+  "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+  "company_name": "Startec Serviços e Tecnologia",
+  "bank_account": "8d2bd953-a203-4c63-901d-75e9a93ae00a",
+  "bank_account_name": "Conta Principal",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "category_name": "Vendas",
+  "cash_register": "174fe7e8-0ba5-4c5e-98ea-e78a0acf0e44",
+  "cash_register_name": "Caixa Principal",
+  "contact": null,
+  "contact_name": null,
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "cost_center_name": "Administracao",
+  "payment_method": "c1d2e3f4-a5b6-7890-cdef-123456789012",
+  "payment_method_name": "Cartão de Débito",
+  "order": 70,
+  "order_code": "#70",
+  "related_transaction": null,
+  "linked_transaction": null,
+  "description": "Venda única - Venda no PDV",
+  "amount": "150.00",
+  "type": "receita",
+  "transaction_date": "2025-12-04",
+  "created_at": "2025-12-04T15:19:32.177724-03:00",
+  "updated_at": "2025-12-04T15:19:32.177732-03:00"
+}
+```
+
+**Nota:** Observe que quando `cash_register` é fornecido:
+- O `bank_account` foi preenchido automaticamente com o `default_bank_account` do caixa
+- O `contact` está `null` (venda para cliente comum no caixa)
+
+### Respostas de Erro - Venda Única
+
+**400 Bad Request - Validação de categoria:**
+```json
+{
+  "category": ["Category type must match transaction type."]
+}
+```
+
+**400 Bad Request - Validação de tipo:**
+```json
+{
+  "type": ["\"receita_rapida\" não é um tipo válido."]
+}
+```
+
+**400 Bad Request - bank_account ou cash_register ausente:**
+```json
+{
+  "bank_account": ["Bank account ou cash register deve ser fornecido."],
+  "cash_register": ["Bank account ou cash register deve ser fornecido."]
+}
+```
+
+**Nota:** O tipo correto é `"receita"`, não `"receita_rapida"`. Pelo menos um dos campos `bank_account` ou `cash_register` deve ser fornecido.
+
+---
+
+## Regras e Validações Gerais
+
+### Campos Obrigatórios
+
+**Bill e Income:**
+- `description` (string)
+- `amount` (decimal > 0)
+- `due_date` (date)
+- `category` (UUID - deve ser do tipo correto)
+- `cost_center` (UUID)
+
+**RecurringBill e RecurringIncome:**
+- `description` (string)
+- `amount` (decimal > 0)
+- `frequency` (string: "daily", "weekly", "monthly", "quarterly", "yearly")
+- `start_date` (date)
+- `next_due_date` (date)
+- `category` (UUID - deve ser do tipo correto)
+- `cost_center` (UUID)
+
+**Transaction:**
+- `description` (string)
+- `amount` (decimal > 0)
+- `type` (string: "despesa" ou "receita")
+- `transaction_date` (date)
+- `bank_account` OU `cash_register` (pelo menos um deve ser fornecido)
+  - Se `cash_register` for fornecido para receita, o `bank_account` será preenchido automaticamente com o `default_bank_account` do caixa
+  - Se `cash_register` for fornecido para receita, o `contact` não é necessário (venda para cliente comum no caixa)
+
+### Validações de Tipo
+
+1. **Bill**: Deve usar categoria do tipo `"despesa"`
+2. **Income**: Deve usar categoria do tipo `"receita"`
+3. **RecurringBill**: Deve usar categoria do tipo `"despesa"`
+4. **RecurringIncome**: Deve usar categoria do tipo `"receita"`
+5. **Transaction (despesa)**: Deve usar categoria do tipo `"despesa"` (se fornecido)
+6. **Transaction (receita)**: Deve usar categoria do tipo `"receita"` (se fornecido)
+
+### Validações de Contato
+
+1. **Bill e RecurringBill**: Se fornecido, o contato deve ser do tipo `"fornecedor"`
+2. **Income e RecurringIncome**: Se fornecido, o contato deve ser do tipo `"cliente"`
+
+### Validações de Data
+
+1. **RecurringBill/RecurringIncome**: 
+   - `end_date` não pode ser anterior a `start_date`
+   - `next_due_date` deve ser igual ou posterior a `start_date`
+
+### Validações de Valor
+
+1. Todos os valores (`amount`) devem ser maiores que zero
+2. Valores são do tipo `decimal` com até 15 dígitos e 2 casas decimais
+
+### Comportamento Automático
+
+1. **Bill/Income**: O campo `order` e `order_code` são gerados automaticamente
+2. **RecurringBill**: Ao criar, gera automaticamente os `RecurringBillPayment` para os próximos 12 meses
+3. **RecurringIncome**: Ao criar, gera automaticamente os `RecurringIncomeReceipt` para os próximos 12 meses
+4. **Transaction**: Atualiza automaticamente o saldo (`current_balance`) da conta bancária associada
+
+### Campos Read-Only
+
+Os seguintes campos são gerados automaticamente e não podem ser enviados no POST:
+- `id` (UUID)
+- `company` (UUID)
+- `company_name` (string)
+- `category_name` (string)
+- `category_code` (string)
+- `contact_name` (string)
+- `cost_center_name` (string)
+- `order` (integer)
+- `order_code` (string)
+- `payment_transaction` (UUID - apenas para Bill/Income)
+- `created_at` (datetime)
+- `updated_at` (datetime)
+
+---
+
+## Códigos de Status HTTP
+
+- `201 Created`: Recurso criado com sucesso
+- `400 Bad Request`: Erro de validação ou dados inválidos
+- `401 Unauthorized`: Token de autenticação inválido ou ausente
+- `403 Forbidden`: Usuário não tem permissão para acessar o recurso
+- `404 Not Found`: Recurso relacionado não encontrado (ex: category, cost_center não existe)
+- `500 Internal Server Error`: Erro interno do servidor
+
+---
+
+## Exemplos de Uso
+
+### Criar uma conta a pagar e depois quitá-la
+
+```bash
+# 1. Criar a conta a pagar
+POST /api/v1/financials/bills/
+{
+  "description": "Aluguel",
+  "amount": "2000.00",
+  "due_date": "2025-12-10",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5"
+}
+
+# 2. Quitar a conta usando a API de Financial Data (ver financial_data_api_post.txt)
+POST /api/v1/financials/financial-data/
+{
+  "uuid": "{bill_id}",
+  "type": "bills",
+  "bank_account": "{bank_account_id}",
+  "transaction_date": "2025-12-05",
+  "payment_method": "{payment_method_id}"
+}
+```
+
+### Criar uma despesa recorrente mensal
+
+```bash
+POST /api/v1/financials/recurring-bills/
+{
+  "description": "Internet mensal",
+  "amount": "150.00",
+  "frequency": "monthly",
+  "start_date": "2025-01-01",
+  "next_due_date": "2025-02-01",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "end_date": null
+}
+```
+
+### Criar uma despesa única (já paga)
+
+```bash
+POST /api/v1/financials/transactions/
+{
+  "description": "Compra de material - Pago na hora",
+  "amount": "350.00",
+  "type": "despesa",
+  "transaction_date": "2025-12-04",
+  "bank_account": "{bank_account_id}",
+  "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "payment_method": "{payment_method_id}"
+}
+```
+
+### Criar uma venda única (já recebida)
+
+**Opção 1: Com bank_account direto**
+```bash
+POST /api/v1/financials/transactions/
+{
+  "description": "Venda à vista - Serviço",
+  "amount": "1200.00",
+  "type": "receita",
+  "transaction_date": "2025-12-04",
+  "bank_account": "{bank_account_id}",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "contact": "{contact_id}",
+  "payment_method": "{payment_method_id}"
+}
+```
+
+**Opção 2: Com cash_register (PDV) - bank_account preenchido automaticamente**
+```bash
+POST /api/v1/financials/transactions/
+{
+  "description": "Venda no PDV - Cliente comum",
+  "amount": "150.00",
+  "type": "receita",
+  "transaction_date": "2025-12-04",
+  "cash_register": "{cash_register_id}",
+  "category": "89d25e77-1234-5678-9abc-def123456789",
+  "cost_center": "1e28c820-e5c4-402e-a94a-5a8c9b8e7da5",
+  "payment_method": "{payment_method_id}"
+}
+```
+
+**Nota:** Quando usar `cash_register`, não é necessário fornecer `bank_account` (será preenchido automaticamente) nem `contact` (venda para cliente comum no caixa).
+
+---
+
+## Notas Importantes
+
+1. **Autenticação**: Todos os endpoints requerem autenticação JWT e company token
+2. **Scoping**: Apenas recursos da empresa ativa (definida no header `X-Company-Id`) são acessíveis
+3. **Código de Ordem**: O campo `order_code` é gerado automaticamente (ex: "#01", "#02")
+4. **Saldo Bancário**: Transações atualizam automaticamente o saldo da conta bancária
+5. **Geração Automática**: RecurringBill e RecurringIncome geram automaticamente os pagamentos/recebimentos futuros
+6. **Validação de Categoria**: A categoria deve corresponder ao tipo de operação (despesa/receita)
+7. **Validação de Contato**: O contato deve corresponder ao tipo de operação (fornecedor/cliente)
+8. **Campo `contact`**: É opcional em todos os endpoints, mas quando fornecido, deve ser do tipo correto
+

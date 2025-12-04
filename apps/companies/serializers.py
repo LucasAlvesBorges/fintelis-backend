@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.users.serializers import MembershipUserCreateSerializer
-from .models import Company, Membership, Invitation
+from .models import Company, CostCenter, Membership, Invitation
 
 User = get_user_model()
 
@@ -64,6 +64,41 @@ class CompanySerializer(serializers.ModelSerializer):
         if subscription:
             return subscription.is_trial
         return False
+
+
+class CostCenterSerializer(serializers.ModelSerializer):
+    parent_name = serializers.CharField(source="parent.name", read_only=True)
+
+    class Meta:
+        model = CostCenter
+        fields = (
+            "id",
+            "company",
+            "name",
+            "code",
+            "parent",
+            "parent_name",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "company",
+            "code",
+            "parent_name",
+            "created_at",
+            "updated_at",
+        )
+        extra_kwargs = {
+            "parent": {"required": False, "allow_null": True},
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        company = self.context.get("company")
+        parent_field = self.fields.get("parent")
+        if company and parent_field and getattr(parent_field, "queryset", None) is not None:
+            self.fields["parent"].queryset = parent_field.queryset.filter(company=company)
 
 
 class MembershipSerializer(serializers.ModelSerializer):

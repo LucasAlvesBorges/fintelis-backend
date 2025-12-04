@@ -599,3 +599,596 @@ O script realiza:
 4. Verificação de atualização de saldo
 5. Validação de resposta
 
+---
+
+# API de Financial Data - Métodos PUT/PATCH
+
+## Endpoint
+
+**PUT/PATCH** `/api/v1/financials/data/`
+
+Atualiza um `recurring_bill` ou `recurring_income`.
+
+**Comportamento:**
+- Parcelas pendentes futuras são atualizadas com os novos dados (ex: novo valor, nova categoria)
+- Parcelas já pagas/recebidas permanecem **inalteradas** (preserva histórico)
+- Se campos de agendamento forem alterados (amount, frequency, start_date, end_date, next_due_date), as parcelas são regeneradas
+
+---
+
+## Autenticação
+
+Requer autenticação JWT e identificação da empresa ativa (mesma do POST).
+
+---
+
+## Body da Requisição
+
+### Campos Obrigatórios
+
+| Campo | Tipo | Descrição | Exemplo |
+|-------|------|-----------|---------|
+| `uuid` | UUID | UUID do recurring_bill ou recurring_income | `"90764fed-4ba7-4e0b-9609-68c94d7184c6"` |
+| `type` | string | Tipo do item. Valores aceitos: `recurring_bills`, `recurring_incomes` | `"recurring_bills"` |
+
+### Campos Editáveis (todos opcionais para PATCH, obrigatórios para PUT)
+
+| Campo | Tipo | Descrição | Exemplo |
+|-------|------|-----------|---------|
+| `description` | string | Nova descrição | `"Aluguel atualizado"` |
+| `amount` | decimal | Novo valor (atualiza parcelas pendentes futuras) | `1500.00` |
+| `frequency` | string | Nova frequência (`daily`, `weekly`, `monthly`, `quarterly`, `yearly`) | `"monthly"` |
+| `category` | UUID | UUID da nova categoria | `"uuid-da-categoria"` |
+| `cost_center` | UUID | UUID do novo centro de custo | `"uuid-do-centro-custo"` |
+| `contact` | UUID | UUID do novo contato | `"uuid-do-contato"` |
+| `start_date` | date | Nova data de início | `"2025-01-01"` |
+| `end_date` | date | Nova data de fim (ou null) | `"2025-12-31"` |
+| `next_due_date` | date | Nova próxima data de vencimento | `"2025-02-01"` |
+| `is_active` | boolean | Se o recorrente está ativo | `true` |
+
+---
+
+## Comportamento de Atualização
+
+### Atualização de Valor (`amount`)
+
+Quando o valor é alterado:
+1. O valor do `recurring_bill`/`recurring_income` é atualizado
+2. Todas as parcelas **PENDENTES** com `due_date >= hoje` são atualizadas com o novo valor
+3. Parcelas já **PAGAS/RECEBIDAS** mantêm o valor original
+
+### Atualização de Campos de Agendamento
+
+Quando `frequency`, `start_date`, `end_date` ou `next_due_date` são alterados:
+1. Parcelas **PENDENTES** futuras são **deletadas**
+2. Novas parcelas são **regeneradas** com base no novo agendamento
+3. Parcelas já **PAGAS/RECEBIDAS** são mantidas intactas
+
+### Atualização de Categoria/Centro de Custo/Contato
+
+Quando esses campos são alterados:
+1. O `recurring_bill`/`recurring_income` é atualizado
+2. Parcelas pendentes **NÃO são alteradas** automaticamente (elas herdam do pai na hora do pagamento)
+3. Quando uma parcela for paga/recebida, ela herdará os novos valores do pai
+
+---
+
+## Resposta de Sucesso
+
+**Status Code:** `200 OK`
+
+Retorna a mesma estrutura do GET com `uuid`, incluindo resumo de pagamentos/recebimentos.
+
+### Exemplo de Resposta - RecurringBill (PATCH)
+
+**Request:**
+```json
+{
+    "uuid": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+    "type": "recurring_bills",
+    "amount": "750.00"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "type": "recurring_bills",
+    "item": {
+        "id": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+        "category_name": "Despesas Operacionais",
+        "category_code": "2",
+        "cost_center": null,
+        "cost_center_name": null,
+        "contact": "0c9ce895-09eb-4128-bd44-959c5616ffc9",
+        "contact_name": "Cliente Exemplo LTDA",
+        "order": 12,
+        "order_code": "#12",
+        "description": "Manutenção trimestral - Equipamentos",
+        "amount": "750.00",
+        "frequency": "quarterly",
+        "start_date": "2025-06-06",
+        "end_date": null,
+        "next_due_date": "2025-12-06",
+        "is_active": false,
+        "created_at": "2025-12-03T15:22:45.570647-03:00",
+        "updated_at": "2025-12-04T11:26:15.249335-03:00"
+    },
+    "payments_summary": {
+        "total_payments": 7,
+        "pending_count": 3,
+        "paid_count": 4,
+        "total_pending": 2250.0,
+        "total_paid": 2000.0
+    },
+    "next_payments": [
+        {
+            "id": "9a7f0e72-0870-466c-8b1c-5f0ffd48efa2",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+            "recurring_bill_description": "Manutenção trimestral - Equipamentos",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "contact_name": "Cliente Exemplo LTDA",
+            "transaction": "a92e5b26-071b-4d0a-8389-85974856f006",
+            "due_date": "2025-12-06",
+            "paid_on": "2025-12-03",
+            "amount": "500.00",
+            "status": "quitada",
+            "created_at": "2025-12-03T15:22:45.574885-03:00",
+            "updated_at": "2025-12-03T16:03:35.077167-03:00"
+        },
+        {
+            "id": "35b45d99-f171-4ed3-b32f-093cddfafaad",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+            "recurring_bill_description": "Manutenção trimestral - Equipamentos",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "contact_name": "Cliente Exemplo LTDA",
+            "transaction": "f0a4261b-8d83-4d03-ad4c-d34349e7d1b1",
+            "due_date": "2026-03-06",
+            "paid_on": "2025-12-03",
+            "amount": "500.00",
+            "status": "quitada",
+            "created_at": "2025-12-03T15:22:45.575799-03:00",
+            "updated_at": "2025-12-03T15:23:33.623025-03:00"
+        },
+        {
+            "id": "fe67a773-75ac-489a-a1f1-670376fd8352",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+            "recurring_bill_description": "Manutenção trimestral - Equipamentos",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "contact_name": "Cliente Exemplo LTDA",
+            "transaction": null,
+            "due_date": "2026-06-06",
+            "paid_on": null,
+            "amount": "750.00",
+            "status": "pendente",
+            "created_at": "2025-12-04T11:26:15.252252-03:00",
+            "updated_at": "2025-12-04T11:26:15.252257-03:00"
+        },
+        {
+            "id": "66c3fdc0-277d-4a50-87aa-2a495c0ab235",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+            "recurring_bill_description": "Manutenção trimestral - Equipamentos",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "contact_name": "Cliente Exemplo LTDA",
+            "transaction": null,
+            "due_date": "2026-09-06",
+            "paid_on": null,
+            "amount": "750.00",
+            "status": "pendente",
+            "created_at": "2025-12-04T11:26:15.252267-03:00",
+            "updated_at": "2025-12-04T11:26:15.252269-03:00"
+        },
+        {
+            "id": "d933817b-6d84-4c1d-9c88-f3551f2fad3b",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+            "recurring_bill_description": "Manutenção trimestral - Equipamentos",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "contact_name": "Cliente Exemplo LTDA",
+            "transaction": null,
+            "due_date": "2026-12-06",
+            "paid_on": null,
+            "amount": "750.00",
+            "status": "pendente",
+            "created_at": "2025-12-04T11:26:15.252276-03:00",
+            "updated_at": "2025-12-04T11:26:15.252278-03:00"
+        }
+    ]
+}
+```
+
+**Observações:**
+- Parcelas já pagas (`status: "quitada"`) mantêm o valor original (`amount: "500.00"`)
+- Parcelas pendentes foram atualizadas com o novo valor (`amount: "750.00"`)
+- O `payments_summary` reflete os valores atualizados
+
+### Exemplo de Resposta - RecurringBill (PUT)
+
+**Request:**
+```json
+{
+    "uuid": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+    "type": "recurring_bills",
+    "description": "Manutenção trimestral - Equipamentos Atualizado",
+    "amount": "800.00",
+    "frequency": "quarterly",
+    "start_date": "2025-06-06",
+    "next_due_date": "2025-12-06",
+    "is_active": true
+}
+```
+
+**Response (200 OK):**
+```json
+{
+    "type": "recurring_bills",
+    "item": {
+        "id": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+        "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+        "company_name": "Startec Serviços e Tecnologia",
+        "category": "06c55420-9fc1-442e-94ae-838e1e93fb7b",
+        "category_name": "Despesas Operacionais",
+        "category_code": "2",
+        "cost_center": null,
+        "cost_center_name": null,
+        "contact": "0c9ce895-09eb-4128-bd44-959c5616ffc9",
+        "contact_name": "Cliente Exemplo LTDA",
+        "order": 12,
+        "order_code": "#12",
+        "description": "Manutenção trimestral - Equipamentos Atualizado",
+        "amount": "800.00",
+        "frequency": "quarterly",
+        "start_date": "2025-06-06",
+        "end_date": null,
+        "next_due_date": "2025-12-06",
+        "is_active": true,
+        "created_at": "2025-12-03T15:22:45.570647-03:00",
+        "updated_at": "2025-12-04T11:26:26.720772-03:00"
+    },
+    "payments_summary": {
+        "total_payments": 7,
+        "pending_count": 3,
+        "paid_count": 4,
+        "total_pending": 2400.0,
+        "total_paid": 2000.0
+    },
+    "next_payments": [
+        {
+            "id": "9a7f0e72-0870-466c-8b1c-5f0ffd48efa2",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+            "recurring_bill_description": "Manutenção trimestral - Equipamentos Atualizado",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "contact_name": "Cliente Exemplo LTDA",
+            "transaction": "a92e5b26-071b-4d0a-8389-85974856f006",
+            "due_date": "2025-12-06",
+            "paid_on": "2025-12-03",
+            "amount": "500.00",
+            "status": "quitada",
+            "created_at": "2025-12-03T15:22:45.574885-03:00",
+            "updated_at": "2025-12-03T16:03:35.077167-03:00"
+        },
+        {
+            "id": "67ce1b08-85cd-41db-aac5-e7adf4cc6b0b",
+            "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+            "recurring_bill": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+            "recurring_bill_description": "Manutenção trimestral - Equipamentos Atualizado",
+            "category_code": "2",
+            "category_name": "Despesas Operacionais",
+            "contact_name": "Cliente Exemplo LTDA",
+            "transaction": null,
+            "due_date": "2026-06-06",
+            "paid_on": null,
+            "amount": "800.00",
+            "status": "pendente",
+            "created_at": "2025-12-04T11:26:26.722774-03:00",
+            "updated_at": "2025-12-04T11:26:26.722777-03:00"
+        }
+    ]
+}
+```
+
+**Observações:**
+- A descrição foi atualizada
+- O valor foi atualizado para R$ 800,00
+- Parcelas pendentes foram regeneradas com o novo valor
+- Parcelas já pagas mantêm o valor original
+
+### Exemplo de Resposta - RecurringIncome (PATCH/PUT)
+
+A estrutura de resposta para `recurring_incomes` é similar à de `recurring_bills`, mas com os seguintes campos específicos:
+
+- `receipts_summary` ao invés de `payments_summary`:
+  ```json
+  {
+      "total_receipts": 12,
+      "pending_count": 10,
+      "received_count": 2,
+      "total_pending": 15000.0,
+      "total_received": 2000.0
+  }
+  ```
+
+- `next_receipts` ao invés de `next_payments`:
+  ```json
+  [
+      {
+          "id": "uuid-receipt-1",
+          "company": "c8ffdb92-2e9d-4bd5-aa05-c06adb85cafb",
+          "recurring_income": "uuid-do-recurring-income",
+          "recurring_income_description": "Assinatura Mensal",
+          "category_code": "1",
+          "category_name": "Vendas",
+          "contact_name": "Cliente Exemplo LTDA",
+          "transaction": null,
+          "due_date": "2025-02-01",
+          "received_on": null,
+          "amount": "1500.00",
+          "status": "pendente",
+          "created_at": "2025-01-01T12:00:00-03:00",
+          "updated_at": "2025-01-01T12:00:00-03:00"
+      }
+  ]
+  ```
+
+---
+
+## Respostas de Erro
+
+### 400 Bad Request - Tipo Não Suporta Atualização
+
+```json
+{
+    "error": "Tipo 'bills' não suporta atualização.",
+    "allowed_types": ["recurring_bills", "recurring_incomes"]
+}
+```
+
+### 400 Bad Request - Campo UUID Ausente
+
+```json
+{
+    "error": "Campo 'uuid' é obrigatório."
+}
+```
+
+### 400 Bad Request - Campo Type Ausente
+
+```json
+{
+    "error": "Campo 'type' é obrigatório."
+}
+```
+
+### 404 Not Found - Item Não Encontrado
+
+```json
+{
+    "error": "Item não encontrado com UUID: {uuid}"
+}
+```
+
+---
+
+## Exemplos de Uso
+
+### Exemplo 1: Atualizar Valor de RecurringBill (PATCH)
+
+**Request:**
+```bash
+curl -X PATCH "http://localhost:8000/api/v1/financials/data/" \
+  -H "Authorization: Bearer <access_token>" \
+  -H "X-Company-Id: <company_id>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "uuid": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+    "type": "recurring_bills",
+    "amount": "750.00"
+  }'
+```
+
+**Resultado:**
+- Valor do recurring_bill atualizado para R$ 750,00
+- Todas as parcelas pendentes futuras atualizadas para R$ 750,00
+- Parcelas já pagas mantêm o valor original (R$ 500,00)
+- Ver resposta completa na seção "Exemplo de Resposta - RecurringBill (PATCH)" acima
+
+### Exemplo 2: Atualizar Descrição e Valor de RecurringBill (PUT)
+
+**Request:**
+```bash
+curl -X PUT "http://localhost:8000/api/v1/financials/data/" \
+  -H "Authorization: Bearer <access_token>" \
+  -H "X-Company-Id: <company_id>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "uuid": "049cc6af-c212-4ed0-aed4-8cb27e1c08f4",
+    "type": "recurring_bills",
+    "description": "Manutenção trimestral - Equipamentos Atualizado",
+    "amount": "800.00",
+    "frequency": "quarterly",
+    "start_date": "2025-06-06",
+    "next_due_date": "2025-12-06",
+    "is_active": true
+  }'
+```
+
+**Resultado:**
+- Descrição atualizada
+- Valor atualizado para R$ 800,00
+- Parcelas pendentes regeneradas com o novo valor
+- Parcelas já recebidas mantidas intactas
+- Ver resposta completa na seção "Exemplo de Resposta - RecurringBill (PUT)" acima
+
+---
+
+# API de Financial Data - Método DELETE
+
+## Endpoint
+
+**DELETE** `/api/v1/financials/data/?uuid={uuid}&type={type}`
+
+Remove um `recurring_bill` ou `recurring_income`.
+
+**Comportamento:**
+- Parcelas **PENDENTES** futuras são **removidas**
+- Parcelas já **PAGAS/RECEBIDAS** são **mantidas** para histórico (referência ao recurring é definida como NULL)
+
+---
+
+## Query Parameters
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|-----------|------|-------------|-----------|
+| `uuid` | UUID | Sim | UUID do recurring_bill ou recurring_income |
+| `type` | string | Sim | `recurring_bills` ou `recurring_incomes` |
+
+---
+
+## Comportamento de Deleção
+
+### Para RecurringBills:
+1. Parcelas com `status = pendente` e `due_date >= hoje` são **deletadas**
+2. Parcelas com `status = quitada` são **mantidas** (campo `recurring_bill` vira `null`)
+3. O `RecurringBill` é deletado
+
+### Para RecurringIncomes:
+1. Parcelas com `status = pendente` e `due_date >= hoje` são **deletadas**
+2. Parcelas com `status = recebido` são **mantidas** (campo `recurring_income` vira `null`)
+3. O `RecurringIncome` é deletado
+
+### Preservação de Histórico
+
+Parcelas já pagas/recebidas são mantidas porque:
+- Possuem transações financeiras associadas
+- Fazem parte do histórico contábil da empresa
+- O campo `recurring_bill` ou `recurring_income` é definido como `NULL`, mas todos os outros dados permanecem
+
+---
+
+## Resposta de Sucesso
+
+**Status Code:** `200 OK`
+
+**Response:**
+```json
+{
+    "message": "Item deletado com sucesso. Parcelas já pagas/recebidas foram mantidas para histórico."
+}
+```
+
+**Observações:**
+- O item `recurring_bill` ou `recurring_income` foi deletado
+- Parcelas pendentes futuras foram removidas
+- Parcelas já pagas/recebidas foram mantidas (campo `recurring_bill` ou `recurring_income` definido como `null`)
+
+---
+
+## Respostas de Erro
+
+### 400 Bad Request - Tipo Não Suporta Deleção
+
+```json
+{
+    "error": "Tipo 'bills' não suporta deleção via esta API.",
+    "allowed_types": ["recurring_bills", "recurring_incomes"]
+}
+```
+
+### 400 Bad Request - Parâmetro UUID Ausente
+
+```json
+{
+    "error": "Parâmetro 'uuid' é obrigatório."
+}
+```
+
+### 400 Bad Request - Parâmetro Type Ausente
+
+```json
+{
+    "error": "Parâmetro 'type' é obrigatório."
+}
+```
+
+### 404 Not Found - Item Não Encontrado
+
+```json
+{
+    "error": "Item não encontrado com UUID: {uuid}"
+}
+```
+
+---
+
+## Exemplos de Uso
+
+### Exemplo 1: Deletar RecurringBill
+
+**Request:**
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/financials/data/?uuid=049cc6af-c212-4ed0-aed4-8cb27e1c08f4&type=recurring_bills" \
+  -H "Authorization: Bearer <access_token>" \
+  -H "X-Company-Id: <company_id>"
+```
+
+**Response (200 OK):**
+```json
+{
+    "message": "Item deletado com sucesso. Parcelas já pagas/recebidas foram mantidas para histórico."
+}
+```
+
+**Resultado:**
+- RecurringBill deletado
+- Parcelas pendentes futuras deletadas
+- Parcelas já pagas mantidas (com `recurring_bill = null`)
+
+### Exemplo 2: Deletar RecurringIncome
+
+**Request:**
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/financials/data/?uuid=11b35d5c-1234-5678-9abc-def012345678&type=recurring_incomes" \
+  -H "Authorization: Bearer <access_token>" \
+  -H "X-Company-Id: <company_id>"
+```
+
+**Response (200 OK):**
+```json
+{
+    "message": "Item deletado com sucesso. Parcelas já pagas/recebidas foram mantidas para histórico."
+}
+```
+
+**Resultado:**
+- RecurringIncome deletado
+- Parcelas pendentes futuras deletadas
+- Parcelas já recebidas mantidas (com `recurring_income = null`)
+
+---
+
+## Notas Importantes
+
+1. **Operação Irreversível**: A deleção do recurring é permanente. Use com cuidado.
+
+2. **Preservação de Histórico**: Parcelas já pagas/recebidas são mantidas para garantir a integridade do histórico financeiro.
+
+3. **Invalidação de Cache**: O cache é automaticamente invalidado após a deleção.
+
+4. **Apenas Recurring**: Este endpoint só suporta deleção de `recurring_bills` e `recurring_incomes`. Para outros tipos, use as APIs específicas.
+
+5. **Parcelas Pendentes Passadas**: Parcelas pendentes com `due_date < hoje` **NÃO** são deletadas automaticamente. Considere quitá-las ou recebê-las antes de deletar o recurring.
+

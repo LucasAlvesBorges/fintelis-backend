@@ -11,10 +11,14 @@ from .views import (
     UserSearchAPIView,
     InvitationListCreateAPIView,
     InvitationAcceptRejectAPIView,
+    CostCenterViewSet,
     SubscriptionActivationView,
 )
 
 router = DefaultRouter()
+# IMPORTANTE: Registrar cost-centers ANTES de "" para evitar conflito de rotas
+# Se "" vier primeiro, ele captura "cost-centers" como UUID de company
+router.register("cost-centers", CostCenterViewSet, basename="cost-centers")
 # Expose company endpoints directly under /api/v1/companies/
 router.register("", CompanyViewSet, basename="companies")
 
