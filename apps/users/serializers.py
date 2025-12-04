@@ -10,7 +10,7 @@ from .models import User, name_validator
 class UserAuthenticationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("first_name", "last_name", "must_change_password", "user_type")
+        fields = ("id", "first_name", "last_name", "email")
 
 
 class RegisterSerializer(serializers.ModelSerializer):

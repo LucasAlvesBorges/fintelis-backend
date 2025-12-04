@@ -18,6 +18,11 @@ class UserSummarySerializer(serializers.ModelSerializer):
 
 
 class CompanySerializer(serializers.ModelSerializer):
+    # Campo calculado para mostrar o plano atual via subscription ativa
+    subscription_plan = serializers.SerializerMethodField()
+    # Campo calculado para mostrar se está em trial
+    is_trial = serializers.SerializerMethodField()
+    
     class Meta:
         model = Company
         fields = (
@@ -28,9 +33,10 @@ class CompanySerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "subscription_active",
-            "subscription_plan",
+            "subscription_started_at",
             "subscription_expires_at",
-            "trial_ends_at",
+            "subscription_plan",
+            "is_trial",
             "has_active_access",
         )
         read_only_fields = (
@@ -38,10 +44,26 @@ class CompanySerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "subscription_active",
+            "subscription_started_at",
             "subscription_expires_at",
-            "trial_ends_at",
+            "subscription_plan",
+            "is_trial",
             "has_active_access",
         )
+    
+    def get_subscription_plan(self, obj):
+        """Retorna o tipo de plano da subscription ativa."""
+        subscription = obj.active_subscription
+        if subscription:
+            return subscription.plan.subscription_plan_type
+        return None
+    
+    def get_is_trial(self, obj):
+        """Retorna True se a subscription ativa é um trial."""
+        subscription = obj.active_subscription
+        if subscription:
+            return subscription.is_trial
+        return False
 
 
 class MembershipSerializer(serializers.ModelSerializer):
@@ -309,7 +331,9 @@ class SubscriptionActivationSerializer(serializers.Serializer):
             )
 
         if start_trial:
-            if company.trial_ends_at:
+            # Verificar se já tem trial via Subscription
+            from apps.payments.models import Subscription
+            if Subscription.objects.filter(company=company, is_trial=True).exists():
                 raise serializers.ValidationError("Trial já iniciado ou utilizado.")
             return attrs
 

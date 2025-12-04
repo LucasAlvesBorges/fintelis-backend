@@ -16,8 +16,6 @@ class TimeStampedModel(models.Model):
         abstract = True
 
 
-def default_trial_end():
-    return timezone.now() + timedelta(days=15)
 
 
 class Company(TimeStampedModel):
@@ -25,46 +23,29 @@ class Company(TimeStampedModel):
     Modelo de empresa (multi-tenant).
     
     Para informações sobre planos de assinatura, veja apps.payments.models.SubscriptionPlanType
+    Histórico de assinaturas está disponível via relacionamento: company.subscriptions
     """
     name = models.CharField(max_length=255)
     cnpj = models.CharField(max_length=255)
     email = models.EmailField(max_length=255)
     
-    # Trial gratuito
-    trial_ends_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name='Trial termina em',
-        help_text='Data de término do período de teste gratuito'
-    )
-    
     # Assinatura (gerenciada pelo app payments)
     subscription_active = models.BooleanField(
         default=False,
         verbose_name='Assinatura Ativa',
-        help_text='Se a empresa tem assinatura ativa (paga ou em trial)'
+        help_text='Se a empresa tem assinatura ativa (paga ou em trial). Histórico completo em subscriptions.'
+    )
+    subscription_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data de Início da Assinatura',
+        help_text='Data de início da assinatura ativa. Expiração calculada via Subscription.'
     )
     subscription_expires_at = models.DateTimeField(
         null=True,
         blank=True,
         verbose_name='Assinatura expira em',
-        help_text='Data de expiração da assinatura atual'
-    )
-    subscription_plan = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True,
-        verbose_name='Plano de Assinatura',
-        help_text='Tipo do plano atual (monthly, quarterly, etc). Veja SubscriptionPlanType em payments.models'
-    )
-    
-    # Integração Mercado Pago (opcional - usado apenas se houver assinatura via MP)
-    mercadopago_subscription_id = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True,
-        verbose_name='ID da Assinatura no Mercado Pago',
-        help_text='ID da assinatura ativa no Mercado Pago (preapproval_id)'
+        help_text='Data de expiração da assinatura ativa. Calculada como: start_date + duração do plano.'
     )
 
     class Meta:
@@ -77,20 +58,27 @@ class Company(TimeStampedModel):
     @property
     def has_active_access(self) -> bool:
         """
-        Allows access if trial is still valid or there is an active subscription.
+        Verifica se a empresa tem acesso ativo (trial ou assinatura paga).
+        Usa subscription_expires_at diretamente.
         """
-        now = timezone.now()
-        if self.trial_ends_at and now <= self.trial_ends_at:
-            return True
-        if self.subscription_active:
-            if self.subscription_expires_at:
-                return now <= self.subscription_expires_at
-            return True
-        return False
-
-    def start_trial(self):
-        self.trial_ends_at = default_trial_end()
-        self.save(update_fields=["trial_ends_at"])
+        if not self.subscription_active:
+            return False
+        
+        if self.subscription_expires_at:
+            return timezone.now() <= self.subscription_expires_at
+        
+        return True
+    
+    @property
+    def active_subscription(self):
+        """Retorna a assinatura ativa mais recente."""
+        return self.subscriptions.filter(
+            status__in=['authorized', 'pending']
+        ).order_by('-start_date', '-created_at').first()
+    
+    def has_trial(self) -> bool:
+        """Verifica se a empresa já teve um trial."""
+        return self.subscriptions.filter(is_trial=True).exists()
 
 
 class CostCenter(TimeStampedModel):

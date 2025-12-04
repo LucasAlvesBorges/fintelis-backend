@@ -475,31 +475,41 @@ class SubscriptionActivationView(ActiveCompanyMixin, APIView):
         serializer.is_valid(raise_exception=True)
 
         if serializer.validated_data.get("start_trial"):
-            company.start_trial()
-            message = "Trial de 15 dias iniciado."
+            # Criar trial via Subscription.create_trial()
+            from apps.payments.models import Subscription
+            try:
+                subscription = Subscription.create_trial(company)
+                message = "Trial de 14 dias iniciado."
+            except ValueError as e:
+                return Response(
+                    {"error": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         else:
-            plan = serializer.validated_data["plan"]
-            expires_at = serializer.validated_data["subscription_expires_at"]
-            company.subscription_plan = plan
-            company.subscription_active = True
-            company.subscription_expires_at = expires_at
-            company.save(
-                update_fields=[
-                    "subscription_plan",
-                    "subscription_active",
-                    "subscription_expires_at",
-                ]
+            # Ativar plano pago (isso deve ser feito via checkout/pagamento)
+            # Por enquanto, apenas retornar erro informando que precisa fazer checkout
+            return Response(
+                {
+                    "error": "Para ativar um plano pago, use o checkout de pagamento.",
+                    "message": "Acesse /payment/checkout para escolher e pagar um plano."
+                },
+                status=status.HTTP_400_BAD_REQUEST
             )
-            message = f"Plano {plan} ativado."
 
+        # Recarregar company para ter os dados atualizados
+        company.refresh_from_db()
+        
+        subscription = company.active_subscription
+        
         return Response(
             {
                 "company": CompanySerializer(company).data,
                 "subscription": {
                     "active": company.subscription_active,
-                    "plan": company.subscription_plan,
+                    "plan": subscription.plan.subscription_plan_type if subscription else None,
+                    "is_trial": subscription.is_trial if subscription else False,
+                    "subscription_started_at": company.subscription_started_at,
                     "subscription_expires_at": company.subscription_expires_at,
-                    "trial_ends_at": company.trial_ends_at,
                     "message": message,
                 },
             }

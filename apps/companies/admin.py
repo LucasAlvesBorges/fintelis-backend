@@ -11,13 +11,19 @@ class CompanyAdmin(admin.ModelAdmin):
         "cnpj",
         "email",
         "subscription_active",
-        "subscription_plan",
+        "subscription_started_at",
+        "subscription_expires_at",
         "has_active_access",
         "created_at",
     )
-    list_filter = ("subscription_active", "subscription_plan", "created_at")
+    list_filter = ("subscription_active", "created_at")
     search_fields = ("name", "cnpj", "email")
-    readonly_fields = ("created_at", "updated_at", "has_active_access")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "has_active_access",
+        "active_subscription_display",
+    )
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
     
@@ -28,13 +34,12 @@ class CompanyAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "subscription_active",
-                    "subscription_plan",
+                    "subscription_started_at",
                     "subscription_expires_at",
-                    "trial_ends_at",
-                    "mercadopago_subscription_id",
+                    "active_subscription_display",
                     "has_active_access",
                 ),
-                "description": "Subscription and trial information.",
+                "description": "Subscription information. Histórico completo em subscriptions.",
             },
         ),
         ("Audit", {"fields": ("created_at", "updated_at")}),
@@ -45,6 +50,16 @@ class CompanyAdmin(admin.ModelAdmin):
 
     has_active_access.boolean = True
     has_active_access.short_description = "Acesso Ativo"
+    
+    def active_subscription_display(self, obj):
+        """Exibe informações da subscription ativa."""
+        subscription = obj.active_subscription
+        if subscription:
+            trial_label = " [TRIAL]" if subscription.is_trial else ""
+            return f"{subscription.plan.subscription_plan_type}{trial_label} - {subscription.status}"
+        return "Nenhuma"
+    
+    active_subscription_display.short_description = "Assinatura Ativa"
 
 
 @admin.register(Membership)

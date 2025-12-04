@@ -4,6 +4,21 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Tentar carregar variáveis do arquivo .env se python-dotenv estiver disponível
+try:
+    from dotenv import load_dotenv
+    env_path = BASE_DIR / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✅ Arquivo .env carregado de: {env_path}")
+    else:
+        print(f"⚠️  Arquivo .env não encontrado em: {env_path}")
+except ImportError:
+    print("⚠️  python-dotenv não instalado. Instale com: pip install python-dotenv")
+    print("   Ou configure as variáveis de ambiente diretamente no sistema/Docker.")
+except Exception as e:
+    print(f"⚠️  Erro ao carregar .env: {e}")
+
 
 def get_bool_env(var_name: str, default: bool = False) -> bool:
     value = os.environ.get(var_name)
@@ -21,6 +36,9 @@ ALLOWED_HOSTS = [
     for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
     if host.strip()
 ]
+
+# Em desenvolvimento, permite qualquer domínio ngrok dinamicamente via middleware
+# O middleware NgrokHostMiddleware adiciona domínios ngrok ao ALLOWED_HOSTS em tempo de execução
 
 
 # Application definition
@@ -46,6 +64,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "fintelis.middleware.NgrokHostMiddleware",  # Permite domínios ngrok em desenvolvimento (deve vir antes do SecurityMiddleware)
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -151,6 +170,23 @@ CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 # Mercado Pago Configuration
 MERCADOPAGO_ACCESS_TOKEN = os.environ.get("MERCADOPAGO_ACCESS_TOKEN")
 MERCADOPAGO_PUBLIC_KEY = os.environ.get("MERCADOPAGO_PUBLIC_KEY")
+
+# Debug: Imprimir variáveis de ambiente importantes
+print("\n" + "="*80)
+print("🔍 DEBUG: Variáveis de Ambiente")
+print("="*80)
+print(f"DEBUG: {DEBUG}")
+print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+print(f"CORS_ALLOWED_ORIGINS: {CORS_ALLOWED_ORIGINS}")
+print(f"MERCADOPAGO_ACCESS_TOKEN: {'✅ Configurado' if MERCADOPAGO_ACCESS_TOKEN else '❌ NÃO CONFIGURADO'}")
+if MERCADOPAGO_ACCESS_TOKEN:
+    # Mostrar apenas os primeiros e últimos caracteres por segurança
+    token_preview = MERCADOPAGO_ACCESS_TOKEN[:10] + "..." + MERCADOPAGO_ACCESS_TOKEN[-10:] if len(MERCADOPAGO_ACCESS_TOKEN) > 20 else "***"
+    print(f"  Token preview: {token_preview}")
+print(f"MERCADOPAGO_PUBLIC_KEY: {'✅ Configurado' if MERCADOPAGO_PUBLIC_KEY else '❌ NÃO CONFIGURADO'}")
+print(f"DB_HOST: {os.environ.get('DB_HOST', 'NÃO CONFIGURADO')}")
+print(f"DB_NAME: {os.environ.get('DB_NAME') or os.environ.get('POSTGRES_DB', 'NÃO CONFIGURADO')}")
+print("="*80 + "\n")
 
 AUTH_PASSWORD_VALIDATORS = [
     {
