@@ -258,8 +258,21 @@ class TransactionSerializer(CompanyScopedModelSerializer):
         cash_register = attrs.get("cash_register")
         bank_account = attrs.get("bank_account")
 
+        # Se cash_register for fornecido, usar o default_bank_account automaticamente
         if cash_register and not bank_account:
             attrs["bank_account"] = cash_register.default_bank_account
+
+        # Validar que bank_account ou cash_register deve ser fornecido
+        if not attrs.get("bank_account") and not cash_register:
+            raise serializers.ValidationError(
+                {
+                    "bank_account": "Bank account ou cash register deve ser fornecido.",
+                    "cash_register": "Bank account ou cash register deve ser fornecido."
+                }
+            )
+
+        # Para receitas com cash_register, contact é opcional (venda para cliente comum)
+        # Não precisa fazer nada aqui, pois contact já é opcional no serializer
 
         if tx_type in {
             Transaction.Types.TRANSFERENCIA_INTERNA,
