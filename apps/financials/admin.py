@@ -62,6 +62,7 @@ class CategoryAdmin(admin.ModelAdmin):
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
     list_display = (
+        "order_code",
         "description",
         "company",
         "type",
@@ -73,8 +74,6 @@ class TransactionAdmin(admin.ModelAdmin):
         "contact",
         "cost_center",
         "payment_method",
-        "order_code",
-        "order",
         "linked_transaction",
     )
     autocomplete_fields = (
@@ -95,15 +94,15 @@ class TransactionAdmin(admin.ModelAdmin):
 @admin.register(Bill)
 class BillAdmin(admin.ModelAdmin):
     list_display = (
+        "order_code",
         "description",
         "company",
         "status",
         "amount",
         "due_date",
+        "category",
         "contact",
         "cost_center",
-        "order_code",
-        "order",
     )
     autocomplete_fields = (
         "company",
@@ -120,15 +119,15 @@ class BillAdmin(admin.ModelAdmin):
 @admin.register(Income)
 class IncomeAdmin(admin.ModelAdmin):
     list_display = (
+        "order_code",
         "description",
         "company",
         "status",
         "amount",
         "due_date",
+        "category",
         "contact",
         "cost_center",
-        "order_code",
-        "order",
     )
     autocomplete_fields = (
         "company",
@@ -145,18 +144,21 @@ class IncomeAdmin(admin.ModelAdmin):
 @admin.register(RecurringBill)
 class RecurringBillAdmin(admin.ModelAdmin):
     list_display = (
+        "order_code",
         "description",
         "company",
         "amount",
         "frequency",
+        "start_date",
         "next_due_date",
+        "end_date",
         "is_active",
+        "category",
+        "contact",
         "cost_center",
-        "order_code",
-        "order",
     )
-    autocomplete_fields = ("company", "category", "cost_center")
-    search_fields = ("description", "company__name")
+    autocomplete_fields = ("company", "category", "cost_center", "contact")
+    search_fields = ("description", "company__name", "contact__name")
     list_filter = ("frequency", "is_active", "company")
     date_hierarchy = "next_due_date"
 
@@ -171,9 +173,10 @@ class RecurringBillPaymentAdmin(admin.ModelAdmin):
         "due_date",
         "paid_on",
         "transaction",
+        "created_at",
     )
     autocomplete_fields = ("company", "recurring_bill", "transaction")
-    search_fields = ("recurring_bill__description", "company__name")
+    search_fields = ("recurring_bill__description", "company__name", "recurring_bill__contact__name")
     list_filter = ("status", "due_date", "company")
     date_hierarchy = "due_date"
 
@@ -181,18 +184,21 @@ class RecurringBillPaymentAdmin(admin.ModelAdmin):
 @admin.register(RecurringIncome)
 class RecurringIncomeAdmin(admin.ModelAdmin):
     list_display = (
+        "order_code",
         "description",
         "company",
         "amount",
         "frequency",
+        "start_date",
         "next_due_date",
+        "end_date",
         "is_active",
+        "category",
+        "contact",
         "cost_center",
-        "order_code",
-        "order",
     )
-    autocomplete_fields = ("company", "category", "cost_center")
-    search_fields = ("description", "company__name")
+    autocomplete_fields = ("company", "category", "cost_center", "contact")
+    search_fields = ("description", "company__name", "contact__name")
     list_filter = ("frequency", "is_active", "company")
     date_hierarchy = "next_due_date"
 
@@ -207,9 +213,10 @@ class RecurringIncomeReceiptAdmin(admin.ModelAdmin):
         "due_date",
         "received_on",
         "transaction",
+        "created_at",
     )
     autocomplete_fields = ("company", "recurring_income", "transaction")
-    search_fields = ("recurring_income__description", "company__name")
+    search_fields = ("recurring_income__description", "company__name", "recurring_income__contact__name")
     list_filter = ("status", "due_date", "company")
     date_hierarchy = "due_date"
 
