@@ -255,12 +255,12 @@ def handle_preapproval_notification(preapproval_id: str):
                     else:
                         logger.error(f"Não foi possível determinar a empresa para o preapproval {preapproval_id}")
                         # Criar subscription sem empresa (será atualizada depois)
-                        # Mas precisamos de uma empresa, então vamos buscar qualquer empresa ativa
+                        # Mas precisamos de uma empresa, então vamos buscar qualquer empresa
                         from apps.companies.models import Company
-                        company = Company.objects.filter(is_active=True).first()
+                        company = Company.objects.first()
                         if not company:
                             raise Exception("Nenhuma empresa encontrada para criar subscription")
-                        logger.warning(f"Usando empresa padrão: {company.name} (ID: {company.id})")
+                        logger.warning(f"Usando empresa padrão (fallback): {company.name} (ID: {company.id})")
                 
                     # Criar subscription
                     mp_status = mp_data.get("status", "pending")
@@ -486,18 +486,26 @@ def handle_subscription_authorized_payment(notification_id: str):
                 handle_preapproval_notification(notification_id)
                 
         except Exception as e:
+            error_str = str(e).lower()
             if (
                 "404" in str(e)
-                or "not_found" in str(e).lower()
-                or "not found" in str(e).lower()
+                or "not_found" in error_str
+                or "not found" in error_str
+                or "bad request" in error_str
+                or "unknown error" in error_str
+                or "subscription bad request" in error_str
             ):
-                logger.error(f"ID {notification_id} não encontrado nem como payment nem como preapproval")
+                logger.warning(f"ID {notification_id} não encontrado ou inválido no Mercado Pago (pode ser um ID de payment temporário): {str(e)}")
+                # Não quebrar o fluxo - apenas logar o aviso
+                return
             else:
                 raise e
                 
     except Exception as e:
         logger.error(f"Erro ao processar subscription_authorized_payment: {str(e)}", exc_info=True)
-        raise
+        # Não quebrar o webhook - apenas logar o erro
+        # O Mercado Pago pode enviar notificações com IDs inválidos ou temporários
+        return
 
 
 def handle_payment_notification(payment_id: str):
@@ -815,8 +823,19 @@ def handle_payment_notification(payment_id: str):
                         subscription_plan = subscription.plan.subscription_plan_type
 
                     # Criar Payment
+                    # Tentar encontrar subscription relacionada se possível
+                    related_subscription = None
+                    if subscription:
+                        related_subscription = subscription
+                    elif preapproval_id:
+                        try:
+                            related_subscription = Subscription.objects.get(preapproval_id=preapproval_id)
+                        except Subscription.DoesNotExist:
+                            pass
+                    
                     payment = Payment.objects.create(
                         company=company,
+                        subscription=related_subscription,
                         payment_id=mercadopago_payment_id,
                         transaction_id=mp_payment.get("id"),
                         amount=mp_payment.get("transaction_amount", 0),
@@ -828,7 +847,7 @@ def handle_payment_notification(payment_id: str):
                         gateway_response=mp_payment,
                     )
 
-                    print(f"✅ Payment criado para empresa {company.name}")
+                    print(f"✅ Payment criado para empresa {company.name}" + (f" (subscription: {related_subscription.preapproval_id})" if related_subscription else ""))
 
                 except Exception as e:
                     print(f"❌ Erro ao buscar empresa: {str(e)}")
@@ -854,6 +873,7 @@ def handle_payment_notification(payment_id: str):
                 if subscription:
                     payment = Payment.objects.create(
                         company=subscription.company,
+                        subscription=subscription,  # Associar payment à subscription
                         payment_id=mercadopago_payment_id,
                         transaction_id=mp_payment.get("id"),
                         amount=mp_payment.get("transaction_amount", 0),
@@ -875,11 +895,15 @@ def handle_payment_notification(payment_id: str):
                         .order_by("-created_at")
                         .first()
                     )
+                    # Tentar associar à subscription se encontrada
+                    related_subscription = None
                     if sub:
                         plan_type = sub.plan.subscription_plan_type
+                        related_subscription = sub
 
                     payment = Payment.objects.create(
                         company=company,
+                        subscription=related_subscription,  # Associar se encontrou subscription
                         payment_id=mercadopago_payment_id,
                         transaction_id=mp_payment.get("id"),
                         amount=mp_payment.get("transaction_amount", 0),
@@ -891,7 +915,8 @@ def handle_payment_notification(payment_id: str):
                         gateway_response=mp_payment,
                     )
                     print(
-                        f"✅ Payment criado para empresa {company.name} (via external_reference)"
+                        f"✅ Payment criado para empresa {company.name} (via external_reference)" + 
+                        (f" - associado à subscription {related_subscription.preapproval_id}" if related_subscription else "")
                     )
                 else:
                     print(
@@ -1093,6 +1118,21 @@ def handle_payment_notification(payment_id: str):
                         external_reference=str(company.id),
                     )
                     subscription.activate()
+                    
+                    # Atualizar payment para associar à subscription criada (se payment já existe)
+                    # Buscar payment mais recente para esta empresa e payment_id
+                    try:
+                        recent_payment = Payment.objects.filter(
+                            company=company,
+                            payment_id=mercadopago_payment_id
+                        ).order_by('-created_at').first()
+                        if recent_payment:
+                            recent_payment.subscription = subscription
+                            recent_payment.save()
+                            logger.info(f"Payment {recent_payment.payment_id} associado à subscription {subscription.preapproval_id}")
+                    except Exception as e:
+                        logger.warning(f"Erro ao associar payment à subscription: {str(e)}")
+                    
                     logger.info(f"Subscription criada para pagamento sem subscription: {subscription.preapproval_id}")
                 else:
                     logger.error(f"Plano {payment.subscription_plan} não encontrado. Não foi possível criar subscription.")

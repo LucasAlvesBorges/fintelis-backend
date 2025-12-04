@@ -410,10 +410,11 @@ class Subscription(models.Model):
         self.end_date = timezone.now()
         self.save()
 
-        # Verificar se há outra assinatura ativa
-        has_other_active = self.company.subscriptions.filter(
-            status__in=[self.Status.AUTHORIZED, self.Status.PENDING],
-            id__ne=self.id
+        # Verificar se há outra assinatura ativa (excluindo esta)
+        has_other_active = self.company.subscriptions.exclude(
+            id=self.id
+        ).filter(
+            status__in=[self.Status.AUTHORIZED, self.Status.PENDING]
         ).exists()
         
         # Se não há outra assinatura ativa, desativar empresa
@@ -424,9 +425,10 @@ class Subscription(models.Model):
             self.company.save()
         else:
             # Se há outra assinatura ativa, atualizar dados da empresa com a mais recente
-            other_subscription = self.company.subscriptions.filter(
-                status__in=[self.Status.AUTHORIZED, self.Status.PENDING],
-                id__ne=self.id
+            other_subscription = self.company.subscriptions.exclude(
+                id=self.id
+            ).filter(
+                status__in=[self.Status.AUTHORIZED, self.Status.PENDING]
             ).order_by('-start_date', '-created_at').first()
             
             if other_subscription:
@@ -512,6 +514,15 @@ class Payment(models.Model):
         on_delete=models.CASCADE,
         related_name="payments",
         verbose_name="Empresa",
+    )
+    subscription = models.ForeignKey(
+        Subscription,
+        on_delete=models.SET_NULL,
+        related_name="payments",
+        null=True,
+        blank=True,
+        verbose_name="Assinatura",
+        help_text="Assinatura à qual este pagamento pertence (para pagamentos recorrentes)"
     )
 
     # Informações do pagamento

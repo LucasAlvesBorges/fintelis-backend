@@ -1,5 +1,34 @@
 from django.contrib import admin
+from django.utils.html import format_html
 from .models import SubscriptionPlan, Subscription, Payment
+
+
+class PaymentInline(admin.TabularInline):
+    """Inline para mostrar payments relacionados a uma subscription."""
+    model = Payment
+    extra = 0
+    readonly_fields = (
+        "id",
+        "payment_id",
+        "transaction_id",
+        "code",
+        "amount",
+        "subscription_plan",
+        "payment_method",
+        "status",
+        "created_at",
+        "completed_at",
+    )
+    fields = (
+        "payment_id",
+        "amount",
+        "payment_method",
+        "status",
+        "created_at",
+        "completed_at",
+    )
+    can_delete = False
+    show_change_link = True
 
 
 @admin.register(SubscriptionPlan)
@@ -111,6 +140,7 @@ class SubscriptionAdmin(admin.ModelAdmin):
         "is_trial",
         "start_date",
         "next_payment_date",
+        "payments_count",
         "created_at",
     )
     list_filter = (
@@ -133,11 +163,26 @@ class SubscriptionAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
         "mercadopago_response",
+        "payments_count",
     )
     raw_id_fields = ("company", "plan")
     list_per_page = 25
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
+    inlines = [PaymentInline]
+    
+    def payments_count(self, obj):
+        """Mostra quantidade de payments relacionados."""
+        count = obj.payments.count()
+        if count > 0:
+            return format_html(
+                '<a href="{}?subscription__id__exact={}">{} pagamento(s)</a>',
+                f"/admin/payments/payment/",
+                obj.id,
+                count
+            )
+        return "0"
+    payments_count.short_description = "Pagamentos"
 
     fieldsets = (
         (
@@ -206,6 +251,7 @@ class PaymentAdmin(admin.ModelAdmin):
         "payment_id",
         "code",
         "company",
+        "subscription",
         "amount",
         "subscription_plan",
         "payment_method",
@@ -217,6 +263,7 @@ class PaymentAdmin(admin.ModelAdmin):
         "status",
         "payment_method",
         "subscription_plan",
+        "subscription",
         "created_at",
     )
     search_fields = (
@@ -233,13 +280,17 @@ class PaymentAdmin(admin.ModelAdmin):
         "updated_at",
         "gateway_response",
     )
-    raw_id_fields = ("company",)
+    raw_id_fields = ("company", "subscription")
     list_per_page = 25
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
 
     fieldsets = (
         ("Company Information", {"fields": ("company",)}),
+        (
+            "Subscription Information",
+            {"fields": ("subscription",)},
+        ),
         (
             "Payment Information",
             {
