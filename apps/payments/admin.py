@@ -130,11 +130,10 @@ class SubscriptionPlanAdmin(admin.ModelAdmin):
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
     list_display = (
-        "id",
         "preapproval_id",
         "external_reference",
-        "company",
-        "plan",
+        "company_link",
+        "plan_link",
         "payer_email",
         "status",
         "is_trial",
@@ -164,8 +163,9 @@ class SubscriptionAdmin(admin.ModelAdmin):
         "updated_at",
         "mercadopago_response",
         "payments_count",
+        "company_link",
+        "plan_link",
     )
-    raw_id_fields = ("company", "plan")
     list_per_page = 25
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
@@ -183,14 +183,36 @@ class SubscriptionAdmin(admin.ModelAdmin):
             )
         return "0"
     payments_count.short_description = "Pagamentos"
+    
+    def company_link(self, obj):
+        """Mostra link para a empresa."""
+        if obj.company:
+            return format_html(
+                '<a href="/admin/companies/company/{}/change/">{}</a>',
+                obj.company.id,
+                obj.company.name
+            )
+        return "-"
+    company_link.short_description = "Empresa"
+    
+    def plan_link(self, obj):
+        """Mostra link para o plano."""
+        if obj.plan:
+            return format_html(
+                '<a href="/admin/payments/subscriptionplan/{}/change/">{}</a>',
+                obj.plan.id,
+                obj.plan.reason
+            )
+        return "-"
+    plan_link.short_description = "Plano"
 
     fieldsets = (
         (
             "Subscription Information",
             {
                 "fields": (
-                    "company",
-                    "plan",
+                    "company_link",
+                    "plan_link",
                     "preapproval_id",
                     "external_reference",
                     "payer_email",
@@ -247,11 +269,10 @@ class SubscriptionAdmin(admin.ModelAdmin):
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = (
-        "id",
         "payment_id",
         "code",
-        "company",
-        "subscription",
+        "company_link",
+        "subscription_link",
         "amount",
         "subscription_plan",
         "payment_method",
@@ -279,17 +300,18 @@ class PaymentAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
         "gateway_response",
+        "company_link",
+        "subscription_link",
     )
-    raw_id_fields = ("company", "subscription")
     list_per_page = 25
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
 
     fieldsets = (
-        ("Company Information", {"fields": ("company",)}),
+        ("Company Information", {"fields": ("company_link",)}),
         (
             "Subscription Information",
-            {"fields": ("subscription",)},
+            {"fields": ("subscription_link",)},
         ),
         (
             "Payment Information",
@@ -331,6 +353,28 @@ class PaymentAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+    def company_link(self, obj):
+        """Mostra link para a empresa."""
+        if obj.company:
+            return format_html(
+                '<a href="/admin/companies/company/{}/change/">{}</a>',
+                obj.company.id,
+                obj.company.name
+            )
+        return "-"
+    company_link.short_description = "Empresa"
+    
+    def subscription_link(self, obj):
+        """Mostra link para a assinatura."""
+        if obj.subscription:
+            return format_html(
+                '<a href="/admin/payments/subscription/{}/change/">{}</a>',
+                obj.subscription.id,
+                obj.subscription.preapproval_id
+            )
+        return "-"
+    subscription_link.short_description = "Assinatura"
 
     def has_delete_permission(self, request, obj=None):
         # Prevent deletion of payments (audit only)

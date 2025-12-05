@@ -42,6 +42,7 @@ class MercadoPagoService:
         repetitions: int = None,
         free_trial_frequency: int = None,
         free_trial_frequency_type: str = None,
+        enable_pix: bool = False,
     ) -> Dict[str, Any]:
         """
         Cria um plano de assinatura no Mercado Pago.
@@ -60,6 +61,7 @@ class MercadoPagoService:
             repetitions: Número de cobranças (None = infinito)
             free_trial_frequency: Duração do trial gratuito
             free_trial_frequency_type: Tipo de duração do trial
+            enable_pix: Se True, habilita PIX como método de pagamento
 
         Returns:
             Dict com resposta do Mercado Pago
@@ -94,11 +96,17 @@ class MercadoPagoService:
             }
 
         # Métodos de pagamento permitidos (opcional, mas recomendado)
+        payment_types = [
+            {"id": "credit_card"},
+            {"id": "debit_card"},
+        ]
+        
+        # Adicionar PIX se habilitado
+        if enable_pix:
+            payment_types.append({"id": "bank_transfer"})  # PIX é um tipo de bank_transfer
+        
         plan_data["payment_methods_allowed"] = {
-            "payment_types": [
-                {"id": "credit_card"},
-                {"id": "debit_card"},
-            ],
+            "payment_types": payment_types,
             "payment_methods": [],
         }
 
@@ -205,62 +213,6 @@ class MercadoPagoService:
 
         except requests.exceptions.RequestException as e:
             raise Exception(f"Erro de conexão com Mercado Pago: {str(e)}")
-
-    def create_card_token(
-        self,
-        card_number: str,
-        cardholder_name: str,
-        expiration_month: str,
-        expiration_year: str,
-        security_code: str,
-        identification_type: str,
-        identification_number: str,
-    ) -> Dict[str, Any]:
-        """
-        Cria um token de cartão de crédito/débito no Mercado Pago.
-
-        Args:
-            card_number: Número do cartão
-            cardholder_name: Nome do titular
-            expiration_month: Mês de expiração (MM)
-            expiration_year: Ano de expiração (YYYY)
-            security_code: Código de segurança (CVV)
-            identification_type: Tipo de documento (CPF ou CNPJ)
-            identification_number: Número do documento
-
-        Returns:
-            Dict com token do cartão
-        """
-        card_data = {
-            "card_number": card_number,
-            "cardholder": {
-                "name": cardholder_name,
-                "identification": {
-                    "type": identification_type,
-                    "number": identification_number,
-                },
-            },
-            "security_code": security_code,
-            "expiration_month": int(expiration_month),
-            "expiration_year": int(expiration_year),
-        }
-
-        # Usar API REST direta para criar token
-        # SDK pode estar usando endpoint antigo ou incompatível
-        try:
-            response = requests.post(
-                f"{self.base_url}/v1/card_tokens",
-                json=card_data,
-                headers=self.headers,
-                params={"public_key": os.environ.get("MERCADOPAGO_PUBLIC_KEY")},
-            )
-
-            if response.status_code not in [200, 201]:
-                raise Exception(f"Erro ao criar token do cartão: {response.text}")
-
-            return response.json()
-        except Exception as e:
-            raise Exception(f"Erro ao criar token do cartão: {str(e)}")
 
     def create_preapproval(
         self,
@@ -417,55 +369,6 @@ class MercadoPagoService:
         except requests.exceptions.RequestException as e:
             raise Exception(f"Erro de conexão com Mercado Pago: {str(e)}")
 
-    def create_payment(
-        self,
-        transaction_amount: Decimal,
-        description: str,
-        payment_method_id: str,
-        payer_email: str,
-        payer_identification_type: str = None,
-        payer_identification_number: str = None,
-    ) -> Dict[str, Any]:
-        """
-        Cria um pagamento único (não recorrente) no Mercado Pago.
-        Usado para PIX e outros métodos de pagamento único.
-
-        Args:
-            transaction_amount: Valor do pagamento
-            description: Descrição do pagamento
-            payment_method_id: ID do método ('pix', 'bolbancario', etc)
-            payer_email: Email do pagador
-            payer_identification_type: Tipo de documento ('CPF' ou 'CNPJ')
-            payer_identification_number: Número do documento
-
-        Returns:
-            Dict com resposta do Mercado Pago incluindo QR Code para PIX
-        """
-        payment_data = {
-            "transaction_amount": float(transaction_amount),
-            "description": description,
-            "payment_method_id": payment_method_id,
-            "payer": {
-                "email": payer_email,
-            },
-        }
-
-        # External reference pode ser adicionado aqui também se necessário
-
-        # Adicionar identificação se fornecida
-        if payer_identification_type and payer_identification_number:
-            payment_data["payer"]["identification"] = {
-                "type": payer_identification_type,
-                "number": payer_identification_number,
-            }
-
-        response = self.sdk.payment().create(payment_data)
-
-        if response["status"] not in [200, 201]:
-            raise Exception(f"Erro ao criar pagamento: {response}")
-
-        return response["response"]
-
     def get_payment(self, payment_id: str) -> Dict[str, Any]:
         """
         Busca um pagamento por ID.
@@ -482,80 +385,6 @@ class MercadoPagoService:
             raise Exception(f"Erro ao buscar pagamento: {response}")
 
         return response["response"]
-
-    def create_preference(
-        self,
-        items: list,
-        payer_email: str,
-        back_urls: Dict[str, str] = None,
-        auto_return: str = "approved",
-        external_reference: str = None,
-    ) -> Dict[str, Any]:
-        """
-        Cria uma preferência de pagamento (Checkout Pro) no Mercado Pago.
-        Usado para redirecionar o usuário para a página de checkout do Mercado Pago.
-
-        Args:
-            items: Lista de itens a serem pagos. Cada item deve ter:
-                {
-                    "title": "Nome do produto",
-                    "quantity": 1,
-                    "unit_price": 100.00
-                }
-            payer_email: Email do pagador
-            back_urls: URLs de retorno após pagamento. Ex:
-                {
-                    "success": "https://yoursite.com/success",
-                    "failure": "https://yoursite.com/failure",
-                    "pending": "https://yoursite.com/pending"
-                }
-            auto_return: Comportamento após pagamento ("approved" ou "all")
-            external_reference: Código de referência externa (ex: UUID da subscription ou company_id)
-
-        Returns:
-            Dict com resposta do Mercado Pago incluindo init_point (URL do checkout)
-        """
-        preference_data = {
-            "items": items,
-            "payer": {
-                "email": payer_email,
-            },
-            "auto_return": auto_return,
-        }
-
-        if back_urls:
-            preference_data["back_urls"] = back_urls
-
-        if external_reference:
-            preference_data["external_reference"] = external_reference
-
-        # Configurar para aceitar apenas cartão de crédito/débito
-        preference_data["payment_methods"] = {
-            "excluded_payment_types": [
-                {"id": "ticket"},  # Excluir boleto
-                {"id": "bank_transfer"},  # Excluir transferência bancária
-            ],
-            "excluded_payment_methods": [],
-            "installments": 12,  # Máximo de parcelas
-        }
-
-        try:
-            response = requests.post(
-                f"{self.base_url}/checkout/preferences",
-                json=preference_data,
-                headers=self.headers,
-                timeout=30,
-            )
-
-            if response.status_code not in [200, 201]:
-                error_data = response.json() if response.text else {}
-                raise Exception(f"Erro ao criar preferência: {error_data}")
-
-            return response.json()
-
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Erro de conexão com Mercado Pago: {str(e)}")
-
 
 # Singleton instance
 _mercadopago_service = None

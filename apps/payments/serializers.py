@@ -92,20 +92,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         ]
 
 
-class CardDataSerializer(serializers.Serializer):
-    """
-    Serializer para dados do cartão de crédito/débito.
-    """
-
-    card_number = serializers.CharField(max_length=19, min_length=13)
-    cardholder_name = serializers.CharField(max_length=255)
-    expiration_month = serializers.CharField(max_length=2)
-    expiration_year = serializers.CharField(max_length=4)
-    security_code = serializers.CharField(max_length=4, min_length=3)
-    identification_type = serializers.ChoiceField(choices=["CPF", "CNPJ"])
-    identification_number = serializers.CharField(max_length=14)
-
-
 class CreateSubscriptionSerializer(serializers.Serializer):
     """
     Serializer para criar assinatura no Mercado Pago.
@@ -160,38 +146,3 @@ class PaymentSerializer(serializers.ModelSerializer):
         ]
 
 
-class PaymentIntentSerializer(serializers.Serializer):
-    """
-    Serializer para criação de intenção de pagamento.
-    """
-
-    company_id = serializers.UUIDField()
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
-    subscription_plan = serializers.ChoiceField(
-        choices=["monthly", "quarterly", "semiannual", "annual"]
-    )
-
-
-class PaymentConfirmationSerializer(serializers.Serializer):
-    """
-    Serializer para confirmação de pagamento.
-    """
-
-    payment_id = serializers.CharField(max_length=255)
-    status = serializers.ChoiceField(choices=["pending", "completed", "failed"])
-    transaction_id = serializers.CharField(max_length=255, required=False)
-
-
-class CreatePixPaymentSerializer(serializers.Serializer):
-    """
-    Serializer para criação de pagamento PIX.
-    """
-
-    company_id = serializers.UUIDField(required=True)
-    plan_type = serializers.ChoiceField(
-        choices=["monthly", "quarterly", "semiannual", "annual"], required=True
-    )
-    payer_email = serializers.EmailField(required=True)
-    billing_day = serializers.IntegerField(
-        min_value=1, max_value=28, required=False, default=10
-    )

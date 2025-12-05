@@ -9,6 +9,12 @@ Usage:
     
     # Criar apenas planos específicos
     python manage.py create_subscription_plans --plans monthly quarterly
+    
+    # Criar planos com PIX habilitado
+    python manage.py create_subscription_plans --enable-pix
+    
+    # Combinar opções
+    python manage.py create_subscription_plans --enable-pix --recreate
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -43,6 +49,16 @@ class Command(BaseCommand):
             type=str,
             default='https://64bfd926763a.ngrok-free.app/subscription',
             help='URL de retorno após checkout',
+        )
+        parser.add_argument(
+            '--enable-pix',
+            action='store_true',
+            help='Habilitar PIX como método de pagamento nos planos (padrão: habilitado)',
+        )
+        parser.add_argument(
+            '--disable-pix',
+            action='store_true',
+            help='Desabilitar PIX como método de pagamento nos planos',
         )
 
     def handle(self, *args, **options):
@@ -82,10 +98,13 @@ class Command(BaseCommand):
         billing_day = options['billing_day']
         back_url = options['back_url']
         recreate = options['recreate']
+        # PIX habilitado por padrão, a menos que --disable-pix seja usado
+        enable_pix = not options['disable_pix']  # True por padrão, False apenas se --disable-pix
         
         self.stdout.write(f'📋 Planos a criar: {", ".join(plans_to_create)}')
         self.stdout.write(f'📅 Dia de cobrança: {billing_day}')
         self.stdout.write(f'🔗 URL de retorno: {back_url}')
+        self.stdout.write(f'💳 PIX habilitado: {"Sim" if enable_pix else "Não"}')
         self.stdout.write('')
         
         # Criar cada plano
@@ -99,7 +118,8 @@ class Command(BaseCommand):
                     plan_type=plan_type,
                     billing_day=billing_day,
                     back_url=back_url,
-                    recreate=recreate
+                    recreate=recreate,
+                    enable_pix=enable_pix
                 )
                 
                 if result == 'created':
@@ -139,7 +159,7 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('✅ Processo concluído!'))
 
-    def _create_plan(self, plan_type, billing_day, back_url, recreate):
+    def _create_plan(self, plan_type, billing_day, back_url, recreate, enable_pix=False):
         """Cria um plano específico."""
         
         self.stdout.write('')
@@ -182,6 +202,8 @@ class Command(BaseCommand):
         self.stdout.write(f'     Valor: R$ {config["amount"]}')
         self.stdout.write(f'     Frequência: a cada {config["frequency"]} {config["frequency_type"]}')
         self.stdout.write(f'     Cobrança: no dia da primeira compra')
+        if enable_pix:
+            self.stdout.write(f'     Métodos de pagamento: Cartão de Crédito, Débito e PIX')
         
         try:
             mp_service = get_mercadopago_service()
@@ -194,12 +216,14 @@ class Command(BaseCommand):
                     )
                 )
             
+            # Criar plano com PIX se habilitado
             mp_response = mp_service.create_preapproval_plan(
                 reason=config['reason'],
                 transaction_amount=config['amount'],
                 frequency=config['frequency'],
                 frequency_type=config['frequency_type'],
                 back_url=back_url,
+                enable_pix=enable_pix,
             )
             
             self.stdout.write(
