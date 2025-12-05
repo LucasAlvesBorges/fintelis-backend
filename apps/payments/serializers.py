@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import SubscriptionPlan, Subscription, Payment
+from .models import SubscriptionPlan, Subscription
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
@@ -90,59 +90,4 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "end_date",
             "created_at",
         ]
-
-
-class CreateSubscriptionSerializer(serializers.Serializer):
-    """
-    Serializer para criar assinatura no Mercado Pago.
-    Agora redireciona para checkout do Mercado Pago, não processa cartão diretamente.
-    """
-
-    company_id = serializers.UUIDField()
-    plan_id = serializers.CharField(
-        help_text="UUID do plano ou tipo de plano (monthly, quarterly, semiannual, annual)"
-    )  # Aceita tanto UUID quanto string do tipo de plano
-    payer_email = serializers.EmailField(
-        required=False,
-        help_text="Email do pagador (opcional - será usado o email do usuário logado se não fornecido)",
-    )
-    billing_day = serializers.IntegerField(
-        min_value=1, max_value=28, required=False, default=10
-    )
-    # card_data não é mais necessário - o checkout do Mercado Pago processa o cartão
-
-
-class PaymentSerializer(serializers.ModelSerializer):
-    """
-    Serializer para pagamentos.
-    """
-
-    company_name = serializers.CharField(source="company.name", read_only=True)
-
-    class Meta:
-        model = Payment
-        fields = [
-            "id",
-            "company",
-            "company_name",
-            "payment_id",
-            "transaction_id",
-            "code",
-            "amount",
-            "subscription_plan",
-            "payment_method",
-            "status",
-            "created_at",
-            "completed_at",
-            "expires_at",
-        ]
-        read_only_fields = [
-            "id",
-            "payment_id",
-            "transaction_id",
-            "status",
-            "created_at",
-            "completed_at",
-        ]
-
 

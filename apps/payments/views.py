@@ -11,7 +11,6 @@ from .serializers import (
     SubscriptionPlanSerializer,
     CreateSubscriptionPlanSerializer,
     SubscriptionSerializer,
-    CreateSubscriptionSerializer,
 )
 from .mercadopago_service import get_mercadopago_service
 

@@ -185,35 +185,6 @@ class MercadoPagoService:
         except requests.exceptions.RequestException as e:
             raise Exception(f"Erro de conexão com Mercado Pago: {str(e)}")
 
-    def update_preapproval_plan(self, plan_id: str, status: str) -> Dict[str, Any]:
-        """
-        Atualiza o status de um plano de assinatura.
-
-        Args:
-            plan_id: ID do plano no Mercado Pago
-            status: Novo status ("active" ou "inactive")
-
-        Returns:
-            Dict com resposta do Mercado Pago
-        """
-        update_data = {"status": status}
-
-        try:
-            response = requests.put(
-                f"{self.base_url}/preapproval_plan/{plan_id}",
-                json=update_data,
-                headers=self.headers,
-            )
-
-            if response.status_code != 200:
-                error_data = response.json() if response.text else {}
-                raise Exception(f"Erro ao atualizar plano: {error_data}")
-
-            return response.json()
-
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Erro de conexão com Mercado Pago: {str(e)}")
-
     def create_preapproval(
         self,
         preapproval_plan_id: str,
@@ -337,32 +308,6 @@ class MercadoPagoService:
             if response.status_code != 200:
                 error_data = response.json() if response.text else {}
                 raise Exception(f"Erro ao atualizar assinatura: {error_data}")
-
-            return response.json()
-
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Erro de conexão com Mercado Pago: {str(e)}")
-
-    def search_preapprovals(self, filters: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Busca assinaturas com filtros.
-
-        Args:
-            filters: Filtros de busca (ex: {"payer_email": "email@example.com"})
-
-        Returns:
-            Dict com lista de assinaturas
-        """
-        try:
-            response = requests.get(
-                f"{self.base_url}/preapproval/search",
-                params=filters or {},
-                headers=self.headers,
-            )
-
-            if response.status_code != 200:
-                error_data = response.json() if response.text else {}
-                raise Exception(f"Erro ao buscar assinaturas: {error_data}")
 
             return response.json()
 
