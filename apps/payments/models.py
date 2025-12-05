@@ -405,9 +405,14 @@ class Subscription(models.Model):
         return new_expires_at
 
     def cancel(self):
-        """Cancela a assinatura."""
+        """
+        Cancela a assinatura.
+        A assinatura é marcada como cancelada no Mercado Pago (para parar pagamentos recorrentes),
+        mas a empresa mantém acesso até a data de expiração (subscription_expires_at).
+        """
         self.status = self.Status.CANCELLED
-        self.end_date = timezone.now()
+        # end_date será definido quando a assinatura realmente expirar
+        # Por enquanto, mantemos None para indicar que ainda está ativa até expires_at
         self.save()
 
         # Verificar se há outra assinatura ativa (excluindo esta)
@@ -417,12 +422,28 @@ class Subscription(models.Model):
             status__in=[self.Status.AUTHORIZED, self.Status.PENDING]
         ).exists()
         
-        # Se não há outra assinatura ativa, desativar empresa
+        # Se não há outra assinatura ativa, verificar se ainda está dentro do período de expiração
         if not has_other_active:
-            self.company.subscription_active = False
-            self.company.subscription_started_at = None
-            self.company.subscription_expires_at = None
-            self.company.save()
+            # Se a empresa ainda tem data de expiração futura, manter ativa até lá
+            if self.company.subscription_expires_at and timezone.now() < self.company.subscription_expires_at:
+                # Manter a empresa ativa até a data de expiração
+                # Garantir que subscription_active seja True e manter subscription_started_at e subscription_expires_at
+                self.company.subscription_active = True
+                # Não limpar subscription_started_at nem subscription_expires_at
+                # A empresa continuará com acesso até subscription_expires_at
+                self.company.save()
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    f"Assinatura {self.preapproval_id} cancelada, mas empresa {self.company.name} "
+                    f"mantém acesso ativo até {self.company.subscription_expires_at}"
+                )
+            else:
+                # Se já expirou ou não tem data de expiração, desativar imediatamente
+                self.company.subscription_active = False
+                self.company.subscription_started_at = None
+                self.company.subscription_expires_at = None
+                self.company.save()
         else:
             # Se há outra assinatura ativa, atualizar dados da empresa com a mais recente
             other_subscription = self.company.subscriptions.exclude(

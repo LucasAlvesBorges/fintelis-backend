@@ -255,12 +255,12 @@ def handle_preapproval_notification(preapproval_id: str):
                     else:
                         logger.error(f"Não foi possível determinar a empresa para o preapproval {preapproval_id}")
                         # Criar subscription sem empresa (será atualizada depois)
-                        # Mas precisamos de uma empresa, então vamos buscar qualquer empresa
+                        # Mas precisamos de uma empresa, então vamos buscar qualquer empresa ativa
                         from apps.companies.models import Company
-                        company = Company.objects.first()
+                        company = Company.objects.filter(is_active=True).first()
                         if not company:
                             raise Exception("Nenhuma empresa encontrada para criar subscription")
-                        logger.warning(f"Usando empresa padrão (fallback): {company.name} (ID: {company.id})")
+                        logger.warning(f"Usando empresa padrão: {company.name} (ID: {company.id})")
                 
                     # Criar subscription
                     mp_status = mp_data.get("status", "pending")

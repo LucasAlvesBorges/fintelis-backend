@@ -358,6 +358,9 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
                     # Verificar se é erro relacionado ao plano não existir
                     if "does not exist" in error_msg.lower() or "404" in error_msg or "not found" in error_msg.lower():
                         logger.warning(f"Plano não existe no Mercado Pago. Usando init_point do plano diretamente.")
+                    elif "card_token_id" in error_msg.lower():
+                        # Erro esperado quando não há card_token_id - sistema usa fallback normalmente
+                        logger.debug(f"Preapproval sem card_token_id não suportado, usando init_point do plano (comportamento esperado): {error_msg}")
                     else:
                         logger.warning(f"Erro ao criar preapproval sem card_token_id: {error_msg}")
                     plan_exists = False  # Marcar como não existente para usar fallback
@@ -452,6 +455,55 @@ class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"], url_path="reactivate")
+    def reactivate_subscription(self, request, pk=None):
+        """
+        Reativa uma assinatura cancelada.
+
+        POST /api/v1/payments/subscriptions/{id}/reactivate/
+        """
+        subscription = self.get_object()
+
+        if subscription.status != subscription.Status.CANCELLED:
+            return Response(
+                {"error": "Apenas assinaturas canceladas podem ser reativadas"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Reativar no Mercado Pago
+            mp_service = get_mercadopago_service()
+            mp_service.update_preapproval(
+                preapproval_id=subscription.preapproval_id,
+                status="authorized",
+            )
+
+            # Reativar no banco
+            subscription.status = subscription.Status.AUTHORIZED
+            subscription.end_date = None
+            subscription.save()
+
+            # Reativar empresa se ainda está dentro do período de expiração
+            from django.utils import timezone
+            if subscription.company.subscription_expires_at and timezone.now() < subscription.company.subscription_expires_at:
+                subscription.company.subscription_active = True
+                subscription.company.save()
+                # Usar método activate para garantir que tudo está correto
+                subscription.activate()
+            else:
+                # Se expirou, apenas atualizar status da subscription
+                # A empresa permanecerá inativa até novo pagamento
+                pass
+
+            return Response(
+                {"message": "Assinatura reativada com sucesso"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Erro ao reativar assinatura: {str(e)}", exc_info=True)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["post"], url_path="create-pix")
